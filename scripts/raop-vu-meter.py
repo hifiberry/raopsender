@@ -95,7 +95,6 @@ def create_vu_bar(level, width=50):
 def monitor_audio_levels(node_id):
     """Monitor audio levels using pw-cli"""
     print(f"\n🎵 Monitoring HiFiBerry ADC input levels (Node ID: {node_id})")
-    print("=" * 80)
     print("Press Ctrl+C to stop\n")
     
     # 10-second running window for peak detection
@@ -145,7 +144,6 @@ def monitor_audio_levels(node_id):
 def main():
     """Main function"""
     print("🎛️  RAOP Audio VU Meter")
-    print("=" * 40)
     
     # Find HiFiBerry node
     hifiberry_node = get_hifiberry_node()
