@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# setup-profile-raop
+# Adds RAOP sink selection to ~/.profile for automatic configuration on login
+
+########################################
+# Safety checks and environment
+########################################
+TARGET_USER="${SUDO_USER:-${USER:-}}"
+TARGET_USER="$(echo "$TARGET_USER" | tr -d '\n' | xargs)"
+
+if [ -z "$TARGET_USER" ]; then
+  echo "Could not determine target user." >&2
+  exit 1
+fi
+
+# If running as root, we need to work with the target user's profile
+if [ "$(id -u)" -eq 0 ]; then
+    TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+else
+    TARGET_HOME="$HOME"
+    TARGET_USER="$USER"
+fi
+
+echo "Setting up RAOP sink selection in ~/.profile for user: $TARGET_USER"
+
+########################################
+# Get script directory and paths
+########################################
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROFILE_FILE="$TARGET_HOME/.profile"
+SELECT_SCRIPT="$SCRIPT_DIR/select-raop-sink"
+
+# Verify the select-raop-sink script exists
+if [ ! -f "$SELECT_SCRIPT" ]; then
+    echo "ERROR: select-raop-sink script not found at $SELECT_SCRIPT" >&2
+    exit 1
+fi
+
+########################################
+# Helper functions
+########################################
+backup_file() {
+  local f="$1"
+  if [ -e "$f" ]; then
+    local bak="$f.bak.$(date +%Y%m%d%H%M%S)"
+    echo "Backing up $f -> $bak"
+    cp -a "$f" "$bak" || true
+  fi
+}
+
+########################################
+# Check if already configured
+########################################
+RAOP_MARKER="# RAOP sink selection - raopsender"
+
+if [ -f "$PROFILE_FILE" ] && grep -q "$RAOP_MARKER" "$PROFILE_FILE"; then
+    echo "RAOP sink selection already configured in $PROFILE_FILE"
+    echo "To reconfigure, remove the section between the raopsender markers and run this script again."
+    exit 0
+fi
+
+########################################
+# Add RAOP sink selection to profile
+########################################
+echo "Adding RAOP sink selection to $PROFILE_FILE..."
+
+# Create profile file if it doesn't exist
+if [ ! -f "$PROFILE_FILE" ]; then
+    touch "$PROFILE_FILE"
+fi
+
+# Backup the profile
+backup_file "$PROFILE_FILE"
+
+# Add the RAOP configuration section
+cat >> "$PROFILE_FILE" << EOF
+
+# RAOP sink selection - raopsender
+# Automatically configure RAOP sink on login if not already set
+if [ -t 0 ] && [ -t 1 ]; then  # Only run in interactive terminals
+    if command -v pw-cli >/dev/null 2>&1; then  # Only if PipeWire is available
+        # Check if RAOP sink is configured and run selection if needed
+        if [ -x "$TARGET_HOME/.local/bin/select-raop-sink" ]; then
+            "$TARGET_HOME/.local/bin/select-raop-sink" 2>/dev/null || true
+        elif [ -x "$SCRIPT_DIR/select-raop-sink" ]; then
+            "$SCRIPT_DIR/select-raop-sink" 2>/dev/null || true
+        fi
+    fi
+fi
+# End RAOP sink selection - raopsender
+
+EOF
+
+# Set ownership if running as root
+if [ "$(id -u)" -eq 0 ]; then
+    chown "$TARGET_USER:$TARGET_USER" "$PROFILE_FILE"
+fi
+
+echo "Successfully added RAOP sink selection to $PROFILE_FILE"
+echo ""
+echo "The RAOP sink selection will now run automatically on login."
+echo "It will:"
+echo "  - Only run in interactive terminal sessions"
+echo "  - Only run if PipeWire is available"
+echo "  - Skip if RAOP sink is already configured and exists"
+echo "  - Fail silently if there are any issues"
+echo ""
+echo "To test the configuration:"
+echo "  source $PROFILE_FILE"
+echo ""
+echo "To remove this configuration, delete the section marked with:"
+echo "  $RAOP_MARKER"

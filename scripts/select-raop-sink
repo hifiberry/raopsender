@@ -6,6 +6,43 @@ set -euo pipefail
 # Saves the selected sink name to ~/.config/raop-sink-name
 
 ########################################
+# Check if sink is already configured and exists
+########################################
+CONFIG_FILE="$HOME/.config/raop-sink-name"
+
+if [ -f "$CONFIG_FILE" ]; then
+    CONFIGURED_SINK=$(cat "$CONFIG_FILE" | tr -d '\n' | xargs)
+    
+    if [ -n "$CONFIGURED_SINK" ]; then
+        echo "Checking existing RAOP sink configuration..."
+        
+        # Check if the configured sink still exists
+        if pw-cli ls Node | grep -q "node.name = \"$CONFIGURED_SINK\""; then
+            # Get the description of the configured sink
+            SINK_DESCRIPTION=$(pw-cli ls Node | grep -A 10 "node.name = \"$CONFIGURED_SINK\"" | grep 'node.description = ' | sed 's/.*node.description = "\(.*\)"/\1/')
+            
+            echo ""
+            echo "RAOP sink already configured and available:"
+            echo "=========================================="
+            echo "Device: $SINK_DESCRIPTION"
+            echo "Sink: $CONFIGURED_SINK"
+            echo ""
+            echo "Configuration file: $CONFIG_FILE"
+            echo ""
+            echo "The sink is ready for use. To reconfigure, delete the config file:"
+            echo "  rm $CONFIG_FILE"
+            echo "Then run this script again."
+            echo ""
+            exit 0
+        else
+            echo "Warning: Configured sink '$CONFIGURED_SINK' no longer exists."
+            echo "Proceeding with new sink selection..."
+            echo ""
+        fi
+    fi
+fi
+
+########################################
 # Check if PipeWire is running
 ########################################
 if ! command -v pw-cli >/dev/null 2>&1; then

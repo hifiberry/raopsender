@@ -166,6 +166,26 @@ else
 fi
 
 ########################################
+# Setup RAOP sink selection in profile
+########################################
+echo ""
+echo "Setting up automatic RAOP sink selection..."
+echo ""
+
+PROFILE_SETUP_SCRIPT="$SCRIPT_DIR/setup-profile-raop"
+
+if [ -f "$PROFILE_SETUP_SCRIPT" ]; then
+  # Make sure the script is executable
+  chmod +x "$PROFILE_SETUP_SCRIPT"
+  
+  # Run the profile setup script
+  "$PROFILE_SETUP_SCRIPT"
+else
+  echo "Warning: setup-profile-raop not found at $PROFILE_SETUP_SCRIPT"
+  echo "You will need to manually configure RAOP sink selection."
+fi
+
+########################################
 # Final notes and reboot
 ########################################
 echo ""
@@ -175,12 +195,15 @@ echo "- PipeWire RAOP module configured for AirPlay streaming"
 echo "- Autologin configured for user: $TARGET_USER"
 echo "- HiFiBerry sound card overlay configured"
 echo "- RAOP audio linking systemd service installed"
+echo "- Automatic RAOP sink selection configured in ~/.profile"
 echo ""
 
 echo "Next steps after reboot:"
-echo "1. Run 'select-raop-sink' to choose your AirPlay target device"
+echo "1. Login will automatically prompt for RAOP sink selection (first time only)"
 echo "2. The audio link service will automatically start with PipeWire"
-echo "3. Check service status with: systemctl --user status raop-audio-link.service"
+echo "3. Manual commands available:"
+echo "   - select-raop-sink: Choose/change AirPlay target device"
+echo "   - systemctl --user status raop-audio-link.service: Check service status"
 echo ""
 
 echo "Security notes:"

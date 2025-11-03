@@ -40,7 +40,7 @@ echo "Installing audio linking script..."
 LOCAL_BIN_DIR="$TARGET_HOME/.local/bin"
 mkdir -p "$LOCAL_BIN_DIR"
 
-# Copy the script
+# Copy the audio linking script
 LINK_SCRIPT="$SCRIPT_DIR/link-audio-to-raop"
 if [ ! -f "$LINK_SCRIPT" ]; then
     echo "ERROR: link-audio-to-raop script not found at $LINK_SCRIPT" >&2
@@ -50,12 +50,24 @@ fi
 cp "$LINK_SCRIPT" "$LOCAL_BIN_DIR/"
 chmod +x "$LOCAL_BIN_DIR/link-audio-to-raop"
 
+# Copy the RAOP sink selection script
+SELECT_SCRIPT="$SCRIPT_DIR/select-raop-sink"
+if [ ! -f "$SELECT_SCRIPT" ]; then
+    echo "ERROR: select-raop-sink script not found at $SELECT_SCRIPT" >&2
+    exit 1
+fi
+
+cp "$SELECT_SCRIPT" "$LOCAL_BIN_DIR/"
+chmod +x "$LOCAL_BIN_DIR/select-raop-sink"
+
 # Set ownership if running as root
 if [ "$(id -u)" -eq 0 ]; then
     chown "$TARGET_USER:$TARGET_USER" "$LOCAL_BIN_DIR/link-audio-to-raop"
+    chown "$TARGET_USER:$TARGET_USER" "$LOCAL_BIN_DIR/select-raop-sink"
 fi
 
 echo "Installed: $LOCAL_BIN_DIR/link-audio-to-raop"
+echo "Installed: $LOCAL_BIN_DIR/select-raop-sink"
 
 ########################################
 # Install the systemd service
