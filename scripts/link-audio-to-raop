@@ -83,7 +83,12 @@ while IFS= read -r line; do
     # Check for start of new node
     if [[ $line =~ ^[[:space:]]*id[[:space:]]+[0-9]+.*type[[:space:]]+PipeWire:Interface:Node ]]; then
         # Check if previous node was a HiFiBerry input
-        if [[ "$current_media_class" == "Audio/Source" ]] && [[ "$current_description" =~ [Hh]ifi[Bb]erry ]] && [ -n "$current_name" ]; then
+        # Look for either "HiFiBerry" in description OR "platform-soc_sound" in node name (which indicates HiFiBerry on Pi)
+        if [[ "$current_media_class" == "Audio/Source" ]] && [ -n "$current_name" ] && (
+            [[ "$current_description" =~ [Hh]ifi[Bb]erry ]] || 
+            [[ "$current_name" =~ platform-soc_sound ]] ||
+            [[ "$current_name" =~ sndrpihifiberry ]]
+        ); then
             HIFIBERRY_INPUT="$current_name"
             break
         fi
@@ -102,7 +107,11 @@ while IFS= read -r line; do
 done <<< "$all_nodes"
 
 # Check the last node too
-if [ -z "$HIFIBERRY_INPUT" ] && [[ "$current_media_class" == "Audio/Source" ]] && [[ "$current_description" =~ [Hh]ifi[Bb]erry ]] && [ -n "$current_name" ]; then
+if [ -z "$HIFIBERRY_INPUT" ] && [[ "$current_media_class" == "Audio/Source" ]] && [ -n "$current_name" ] && (
+    [[ "$current_description" =~ [Hh]ifi[Bb]erry ]] || 
+    [[ "$current_name" =~ platform-soc_sound ]] ||
+    [[ "$current_name" =~ sndrpihifiberry ]]
+); then
     HIFIBERRY_INPUT="$current_name"
 fi
 
