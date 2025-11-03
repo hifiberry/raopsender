@@ -94,13 +94,18 @@ def create_vu_bar(level, width=50):
 
 def monitor_audio_levels(node_id):
     """Monitor audio levels using pw-cli"""
-    print(f"\n🎵 Monitoring HiFiBerry ADC input levels (Node ID: {node_id})")
+    print(f"\nMonitoring HiFiBerry ADC input levels - Node ID: {node_id}")
     print("Press Ctrl+C to stop\n")
     
     # 10-second running window for peak detection
     # Store samples with timestamps (sample_rate = 10Hz, so 100 samples = 10 seconds)
     left_peak_window = deque(maxlen=100)  
     right_peak_window = deque(maxlen=100)
+    
+    # Initialize display area
+    print("L:")
+    print("R:")
+    print("Peak:")
     
     try:
         while True:
@@ -128,22 +133,20 @@ def monitor_audio_levels(node_id):
             left_peak = max(left_recent) if left_recent else left_level
             right_peak = max(right_recent) if right_recent else right_level
             
-            # Clear previous lines
-            print('\033[2K\033[1A' * 3, end='')
-            
-            # Display VU meters
-            print(f"L: {create_vu_bar(left_level)}")
-            print(f"R: {create_vu_bar(right_level)}")
-            print(f"Peak: L={left_peak:6.1f}dB  R={right_peak:6.1f}dB")
+            # Move cursor up 3 lines and update display
+            print('\033[3A', end='')  # Move up 3 lines
+            print(f'\033[2KL: {create_vu_bar(left_level)}')  # Clear line and print L
+            print(f'\033[2KR: {create_vu_bar(right_level)}')  # Clear line and print R
+            print(f'\033[2KPeak: L={left_peak:6.1f}dB  R={right_peak:6.1f}dB')  # Clear line and print Peak
             
             time.sleep(0.1)
             
     except KeyboardInterrupt:
-        print("\n\n🔇 Monitoring stopped.")
+        print("\n\nMonitoring stopped.")
 
 def main():
     """Main function"""
-    print("🎛️  RAOP Audio VU Meter")
+    print("RAOP Audio VU Meter")
     
     # Find HiFiBerry node
     hifiberry_node = get_hifiberry_node()
