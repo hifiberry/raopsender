@@ -5,7 +5,7 @@ set -euo pipefail
 # - Updates Debian (Trixie-compatible) packages
 # - Installs PipeWire and WirePlumber and common audio helpers
 # - Enables linger for the target user so user systemd units can run
-# - Configures autologin on tty1 and common display managers (GDM, LightDM, SDDM) if present
+# - Configures autologin on tty1
 # Run with: sudo ./setup-trixie-pipewire-autologin.sh
 
 ########################################
@@ -102,59 +102,6 @@ systemctl daemon-reload
 systemctl restart getty@tty1.service || true
 
 ########################################
-# Configure common display managers (best-effort)
-########################################
-# GDM (gdm3)
-if [ -f /etc/gdm3/daemon.conf ]; then
-  echo "Configuring GDM autologin"
-  backup_file /etc/gdm3/daemon.conf
-  # Ensure [daemon] section contains the keys we need
-  if ! grep -q "^\[daemon\]" /etc/gdm3/daemon.conf; then
-    printf "\n[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=%s\n" "$TARGET_USER" >> /etc/gdm3/daemon.conf
-  else
-    # set or replace keys in-place
-    sed -i -E "s/^#?[[:space:]]*AutomaticLoginEnable=.*/AutomaticLoginEnable=true/" /etc/gdm3/daemon.conf || true
-    sed -i -E "s/^#?[[:space:]]*AutomaticLogin=.*/AutomaticLogin=$TARGET_USER/" /etc/gdm3/daemon.conf || true
-    if ! grep -q "^AutomaticLoginEnable=" /etc/gdm3/daemon.conf; then
-      sed -i "/^\[daemon\]/a AutomaticLoginEnable=true" /etc/gdm3/daemon.conf || true
-    fi
-    if ! grep -q "^AutomaticLogin=" /etc/gdm3/daemon.conf; then
-      sed -i "/^\[daemon\]/a AutomaticLogin=$TARGET_USER" /etc/gdm3/daemon.conf || true
-    fi
-  fi
-  systemctl restart gdm3.service >/dev/null 2>&1 || true
-fi
-
-# LightDM
-if [ -d /etc/lightdm ] || [ -f /etc/lightdm/lightdm.conf ]; then
-  echo "Configuring LightDM autologin"
-  LIGHT_CONF="/etc/lightdm/lightdm.conf.d/50-autologin.conf"
-  mkdir -p "$(dirname "$LIGHT_CONF")"
-  backup_file "$LIGHT_CONF"
-  cat > "$LIGHT_CONF" <<EOF
-[Seat:*]
-autologin-user=$TARGET_USER
-autologin-user-timeout=0
-EOF
-  systemctl restart lightdm.service >/dev/null 2>&1 || true
-fi
-
-# SDDM
-if [ -f /etc/sddm.conf ] || [ -d /etc/sddm.conf.d ]; then
-  echo "Configuring SDDM autologin"
-  SDDM_DIR="/etc/sddm.conf.d"
-  mkdir -p "$SDDM_DIR"
-  SDDM_CONF="$SDDM_DIR/autologin.conf"
-  backup_file "$SDDM_CONF"
-  cat > "$SDDM_CONF" <<EOF
-[Autologin]
-User=$TARGET_USER
-Session=
-EOF
-  systemctl restart sddm.service >/dev/null 2>&1 || true
-fi
-
-########################################
 # Final notes and warnings
 ########################################
 echo "\nDone. Installed PipeWire and WirePlumber (best-effort)."
@@ -164,7 +111,7 @@ echo "Security notes:"
 echo " - Automatic login will allow physical access to the account without a password."
 echo " - If this is for a desktop kiosk or dedicated device, it's common; on a multi-user system it may be undesirable."
 
-echo "If you need to revert autologin changes, restore backups created with the .bak.TIMESTAMP suffix in any modified file locations (e.g. /etc/gdm3/daemon.conf.bak.* or files under /etc/lightdm or /etc/sddm.conf.d)."
+echo "If you need to revert autologin changes, restore the backup created at $OVERRIDE.bak.TIMESTAMP"
 
 echo "To make the script executable locally run:"
 echo "  chmod +x ./scripts/setup-trixie-pipewire-autologin.sh"
