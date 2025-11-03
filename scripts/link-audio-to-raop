@@ -165,69 +165,66 @@ fi
 ########################################
 log_message "Creating audio link from $HIFIBERRY_INPUT to $TARGET_SINK..."
 
-# First check if pw-link -l returns anything at all
-log_message "Checking if any ports are available..."
-all_ports=$(pw-link -l)
-if [ -z "$all_ports" ]; then
-    log_message "No ports found with pw-link -l. Checking with pw-cli ls Port..."
-    
-    # Try using pw-cli ls Port instead
-    port_info=$(pw-cli ls Port)
-    if [ -z "$port_info" ]; then
-        log_message "ERROR: No audio ports found. Audio devices may not be ready."
-        log_message "Try waiting longer or check if audio devices are properly initialized."
-        exit 1
-    fi
-    
-    # Extract ports using pw-cli output - use port IDs directly
-    log_message "Finding port IDs using pw-cli ls Port..."
-    
-    # Get output port IDs for HiFiBerry input (capture ports with direction "out")
-    # Find the node.id for our HiFiBerry input first
-    HIFIBERRY_NODE_ID=$(pw-cli ls Node | grep -B 5 "node.name = \"$HIFIBERRY_INPUT\"" | grep "id " | head -1 | sed 's/.*id \([0-9]*\).*/\1/')
-    log_message "HiFiBerry node ID: $HIFIBERRY_NODE_ID"
-    
-    # Get RAOP sink node ID
-    RAOP_NODE_ID=$(pw-cli ls Node | grep -B 5 "node.name = \"$TARGET_SINK\"" | grep "id " | head -1 | sed 's/.*id \([0-9]*\).*/\1/')
-    log_message "RAOP sink node ID: $RAOP_NODE_ID"
-    
-    if [ -z "$HIFIBERRY_NODE_ID" ] || [ -z "$RAOP_NODE_ID" ]; then
-        log_message "ERROR: Could not find node IDs"
-        exit 1
-    fi
-    
-    # Get capture port IDs (direction "out") for HiFiBerry - exclude monitor ports
-    INPUT_PORT_IDS=$(pw-cli ls Port | awk -v node_id="$HIFIBERRY_NODE_ID" '
-        /^[[:space:]]*id [0-9]+/ { current_id = $2; node_matches = 0; is_out = 0; is_monitor = 0 }
-        /node\.id = "'"$HIFIBERRY_NODE_ID"'"/ { node_matches = 1 }
-        /port\.direction = "out"/ { is_out = 1 }
-        /port\.monitor = "true"/ { is_monitor = 1 }
-        node_matches && is_out && !is_monitor && /audio\.channel/ { print current_id }
-    ')
-    
-    # Get send port IDs (direction "in") for RAOP sink
-    SINK_PORT_IDS=$(pw-cli ls Port | awk -v node_id="$RAOP_NODE_ID" '
-        /^[[:space:]]*id [0-9]+/ { current_id = $2; node_matches = 0; is_in = 0; is_monitor = 0 }
-        /node\.id = "'"$RAOP_NODE_ID"'"/ { node_matches = 1 }
-        /port\.direction = "in"/ { is_in = 1 }
-        /port\.monitor = "true"/ { is_monitor = 1 }
-        node_matches && is_in && !is_monitor && /audio\.channel/ { print current_id }
-    ')
-    
-    INPUT_PORTS="$INPUT_PORT_IDS"
-    SINK_PORTS="$SINK_PORT_IDS"
-    
-else
-    log_message "Found ports with pw-link -l, using standard method..."
-    
-    # Get the output ports of the HiFiBerry input (typically stereo: left and right)
-    log_message "Searching for output ports of $HIFIBERRY_INPUT..."
-    INPUT_PORTS=$(echo "$all_ports" | grep "$HIFIBERRY_INPUT" | grep "output" | awk '{print $1}')
+# Extract ports using pw-cli output - use port IDs directly
+log_message "Finding port IDs using pw-cli ls Port..."
 
-    # Get the input ports of the target sink
-    log_message "Searching for input ports of $TARGET_SINK..."
-    SINK_PORTS=$(echo "$all_ports" | grep "$TARGET_SINK" | grep "input" | awk '{print $1}')
+# Get node IDs using a more robust method
+log_message "Searching for HiFiBerry node ID..."
+HIFIBERRY_NODE_ID=$(pw-cli ls Node | awk '
+    /^[[:space:]]*id [0-9]+/ { current_id = $2; node_name = "" }
+    /node\.name = "'"$HIFIBERRY_INPUT"'"/ { node_name = "'"$HIFIBERRY_INPUT"'" }
+    /media\.class = "Audio\/Source"/ && node_name == "'"$HIFIBERRY_INPUT"'" { print current_id; exit }
+')
+log_message "HiFiBerry node ID: $HIFIBERRY_NODE_ID"
+
+# Get RAOP sink node ID
+log_message "Searching for RAOP sink node ID..."
+RAOP_NODE_ID=$(pw-cli ls Node | awk '
+    /^[[:space:]]*id [0-9]+/ { current_id = $2; node_name = "" }
+    /node\.name = "'"$TARGET_SINK"'"/ { node_name = "'"$TARGET_SINK"'" }
+    /media\.class = "Audio\/Sink"/ && node_name == "'"$TARGET_SINK"'" { print current_id; exit }
+')
+log_message "RAOP sink node ID: $RAOP_NODE_ID"
+
+if [ -z "$HIFIBERRY_NODE_ID" ] || [ -z "$RAOP_NODE_ID" ]; then
+    log_message "ERROR: Could not find node IDs"
+    log_message "Available Audio/Source nodes:"
+    pw-cli ls Node | awk '
+        /^[[:space:]]*id [0-9]+/ { current_id = $2; node_name = ""; node_desc = "" }
+        /node\.name = / { match($0, /node\.name = "([^"]*)"/, arr); node_name = arr[1] }
+        /node\.description = / { match($0, /node\.description = "([^"]*)"/, arr); node_desc = arr[1] }
+        /media\.class = "Audio\/Source"/ { print "  ID " current_id ": " node_desc " (" node_name ")" }
+    '
+    log_message "Available Audio/Sink nodes:"
+    pw-cli ls Node | awk '
+        /^[[:space:]]*id [0-9]+/ { current_id = $2; node_name = ""; node_desc = "" }
+        /node\.name = / { match($0, /node\.name = "([^"]*)"/, arr); node_name = arr[1] }
+        /node\.description = / { match($0, /node\.description = "([^"]*)"/, arr); node_desc = arr[1] }
+        /media\.class = "Audio\/Sink"/ && node_name ~ /raop_sink/ { print "  ID " current_id ": " node_desc " (" node_name ")" }
+    '
+    exit 1
 fi
+
+# Get capture port IDs (direction "out") for HiFiBerry - exclude monitor ports
+INPUT_PORT_IDS=$(pw-cli ls Port | awk -v node_id="$HIFIBERRY_NODE_ID" '
+    /^[[:space:]]*id [0-9]+/ { current_id = $2; node_matches = 0; is_out = 0; is_monitor = 0 }
+    /node\.id = "'"$HIFIBERRY_NODE_ID"'"/ { node_matches = 1 }
+    /port\.direction = "out"/ { is_out = 1 }
+    /port\.monitor = "true"/ { is_monitor = 1 }
+    node_matches && is_out && !is_monitor && /audio\.channel/ { print current_id }
+')
+
+# Get send port IDs (direction "in") for RAOP sink
+SINK_PORT_IDS=$(pw-cli ls Port | awk -v node_id="$RAOP_NODE_ID" '
+    /^[[:space:]]*id [0-9]+/ { current_id = $2; node_matches = 0; is_in = 0; is_monitor = 0 }
+    /node\.id = "'"$RAOP_NODE_ID"'"/ { node_matches = 1 }
+    /port\.direction = "in"/ { is_in = 1 }
+    /port\.monitor = "true"/ { is_monitor = 1 }
+    node_matches && is_in && !is_monitor && /audio\.channel/ { print current_id }
+')
+
+INPUT_PORTS="$INPUT_PORT_IDS"
+SINK_PORTS="$SINK_PORT_IDS"
 
 if [ -z "$INPUT_PORTS" ]; then
     log_message "ERROR: No output ports found for $HIFIBERRY_INPUT"
