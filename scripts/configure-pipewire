@@ -40,7 +40,17 @@ backup_file "$RAOP_CONF"
 
 cat > "$RAOP_CONF" <<EOF
 context.modules = [
-    { name = libpipewire-module-raop-discover }
+    {
+        name = libpipewire-module-raop-discover
+        args = {
+            # Set preferred format and rate for RAOP sinks
+            default.clock.rate = 48000
+            default.clock.allowed-rates = [ 48000 ]
+            default.clock.quantum = 1024
+            default.clock.min-quantum = 1024
+            default.clock.max-quantum = 1024
+        }
+    }
 ]
 EOF
 
