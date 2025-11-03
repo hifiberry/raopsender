@@ -11,6 +11,7 @@ import time
 import re
 import threading
 from datetime import datetime
+from collections import deque
 
 def log_message(message):
     """Log a message with timestamp"""
@@ -89,13 +90,18 @@ def create_vu_bar(level, width=50):
     reset = '\033[0m'
     
     bar = color + '█' * filled + '░' * (width - filled) + reset
-    return f"{bar} {normalized:5.1f}%"
+    return bar
 
 def monitor_audio_levels(node_id):
     """Monitor audio levels using pw-cli"""
     print(f"\n🎵 Monitoring HiFiBerry ADC input levels (Node ID: {node_id})")
     print("=" * 80)
     print("Press Ctrl+C to stop\n")
+    
+    # 10-second running window for peak detection
+    # Store samples with timestamps (sample_rate = 10Hz, so 100 samples = 10 seconds)
+    left_peak_window = deque(maxlen=100)  
+    right_peak_window = deque(maxlen=100)
     
     try:
         while True:
@@ -107,13 +113,29 @@ def monitor_audio_levels(node_id):
             left_level = random.uniform(-60, -10)  # Simulated dB levels
             right_level = random.uniform(-60, -10)
             
+            current_time = time.time()
+            
+            # Add current levels to peak windows
+            left_peak_window.append((current_time, left_level))
+            right_peak_window.append((current_time, right_level))
+            
+            # Calculate 10-second peak values
+            ten_seconds_ago = current_time - 10.0
+            
+            # Filter to only include samples from last 10 seconds and get peak
+            left_recent = [level for timestamp, level in left_peak_window if timestamp >= ten_seconds_ago]
+            right_recent = [level for timestamp, level in right_peak_window if timestamp >= ten_seconds_ago]
+            
+            left_peak = max(left_recent) if left_recent else left_level
+            right_peak = max(right_recent) if right_recent else right_level
+            
             # Clear previous lines
             print('\033[2K\033[1A' * 3, end='')
             
             # Display VU meters
             print(f"L: {create_vu_bar(left_level)}")
             print(f"R: {create_vu_bar(right_level)}")
-            print(f"Peak: L={left_level:6.1f}dB  R={right_level:6.1f}dB")
+            print(f"Peak: L={left_peak:6.1f}dB  R={right_peak:6.1f}dB")
             
             time.sleep(0.1)
             
