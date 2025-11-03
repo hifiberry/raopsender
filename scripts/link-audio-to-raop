@@ -171,18 +171,30 @@ log_message "Finding port IDs using pw-cli ls Port..."
 # Get node IDs using a more robust method
 log_message "Searching for HiFiBerry node ID..."
 HIFIBERRY_NODE_ID=$(pw-cli ls Node | awk '
-    /^[[:space:]]*id [0-9]+/ { current_id = $2; node_name = "" }
+    /^[[:space:]]*id [0-9]+/ { 
+        match($0, /id ([0-9]+)/, arr); 
+        current_id = arr[1]; 
+        node_name = ""; 
+        media_class = "" 
+    }
     /node\.name = "'"$HIFIBERRY_INPUT"'"/ { node_name = "'"$HIFIBERRY_INPUT"'" }
-    /media\.class = "Audio\/Source"/ && node_name == "'"$HIFIBERRY_INPUT"'" { print current_id; exit }
+    /media\.class = "Audio\/Source"/ { media_class = "Audio/Source" }
+    media_class == "Audio/Source" && node_name == "'"$HIFIBERRY_INPUT"'" { print current_id; exit }
 ')
 log_message "HiFiBerry node ID: $HIFIBERRY_NODE_ID"
 
 # Get RAOP sink node ID
 log_message "Searching for RAOP sink node ID..."
 RAOP_NODE_ID=$(pw-cli ls Node | awk '
-    /^[[:space:]]*id [0-9]+/ { current_id = $2; node_name = "" }
+    /^[[:space:]]*id [0-9]+/ { 
+        match($0, /id ([0-9]+)/, arr); 
+        current_id = arr[1]; 
+        node_name = ""; 
+        media_class = "" 
+    }
     /node\.name = "'"$TARGET_SINK"'"/ { node_name = "'"$TARGET_SINK"'" }
-    /media\.class = "Audio\/Sink"/ && node_name == "'"$TARGET_SINK"'" { print current_id; exit }
+    /media\.class = "Audio\/Sink"/ { media_class = "Audio/Sink" }
+    media_class == "Audio/Sink" && node_name == "'"$TARGET_SINK"'" { print current_id; exit }
 ')
 log_message "RAOP sink node ID: $RAOP_NODE_ID"
 
@@ -206,39 +218,62 @@ if [ -z "$HIFIBERRY_NODE_ID" ] || [ -z "$RAOP_NODE_ID" ]; then
 fi
 
 # Get capture port IDs (direction "out") for HiFiBerry - exclude monitor ports
-INPUT_PORT_IDS=$(pw-cli ls Port | awk -v node_id="$HIFIBERRY_NODE_ID" '
-    /^[[:space:]]*id [0-9]+/ { current_id = $2; node_matches = 0; is_out = 0; is_monitor = 0 }
-    /node\.id = "'"$HIFIBERRY_NODE_ID"'"/ { node_matches = 1 }
-    /port\.direction = "out"/ { is_out = 1 }
+log_message "Searching for HiFiBerry capture ports..."
+INPUT_PORT_IDS=$(pw-cli ls Port | awk -v target_node="$HIFIBERRY_NODE_ID" '
+    /^[[:space:]]*id [0-9]+/ { 
+        match($0, /id ([0-9]+)/, arr); 
+        current_id = arr[1]; 
+        node_id = ""; 
+        direction = ""; 
+        is_monitor = 0; 
+        has_audio_channel = 0 
+    }
+    /node\.id = / { match($0, /node\.id = "([^"]*)"/, arr); node_id = arr[1] }
+    /port\.direction = / { match($0, /port\.direction = "([^"]*)"/, arr); direction = arr[1] }
     /port\.monitor = "true"/ { is_monitor = 1 }
-    node_matches && is_out && !is_monitor && /audio\.channel/ { print current_id }
+    /audio\.channel/ { has_audio_channel = 1 }
+    node_id == target_node && direction == "out" && !is_monitor && has_audio_channel { 
+        print current_id 
+    }
 ')
 
 # Get send port IDs (direction "in") for RAOP sink
-SINK_PORT_IDS=$(pw-cli ls Port | awk -v node_id="$RAOP_NODE_ID" '
-    /^[[:space:]]*id [0-9]+/ { current_id = $2; node_matches = 0; is_in = 0; is_monitor = 0 }
-    /node\.id = "'"$RAOP_NODE_ID"'"/ { node_matches = 1 }
-    /port\.direction = "in"/ { is_in = 1 }
+log_message "Searching for RAOP sink input ports..."
+SINK_PORT_IDS=$(pw-cli ls Port | awk -v target_node="$RAOP_NODE_ID" '
+    /^[[:space:]]*id [0-9]+/ { 
+        match($0, /id ([0-9]+)/, arr); 
+        current_id = arr[1]; 
+        node_id = ""; 
+        direction = ""; 
+        is_monitor = 0; 
+        has_audio_channel = 0 
+    }
+    /node\.id = / { match($0, /node\.id = "([^"]*)"/, arr); node_id = arr[1] }
+    /port\.direction = / { match($0, /port\.direction = "([^"]*)"/, arr); direction = arr[1] }
     /port\.monitor = "true"/ { is_monitor = 1 }
-    node_matches && is_in && !is_monitor && /audio\.channel/ { print current_id }
+    /audio\.channel/ { has_audio_channel = 1 }
+    node_id == target_node && direction == "in" && !is_monitor && has_audio_channel { 
+        print current_id 
+    }
 ')
+
+log_message "Found HiFiBerry port IDs: $INPUT_PORT_IDS"
+log_message "Found RAOP sink port IDs: $SINK_PORT_IDS"
 
 INPUT_PORTS="$INPUT_PORT_IDS"
 SINK_PORTS="$SINK_PORT_IDS"
 
 if [ -z "$INPUT_PORTS" ]; then
-    log_message "ERROR: No output ports found for $HIFIBERRY_INPUT"
-    log_message "Available ports for HiFiBerry input:"
-    pw-cli ls Port | grep -A 10 "$HIFIBERRY_INPUT" || log_message "  No ports found at all"
-    log_message "All available ports:"
-    pw-cli ls Port | grep "port.name" | head -10 || log_message "  No ports found"
+    log_message "ERROR: No output ports found for $HIFIBERRY_INPUT (node ID: $HIFIBERRY_NODE_ID)"
+    log_message "Available ports for node $HIFIBERRY_NODE_ID:"
+    pw-cli ls Port | grep -A 10 "node.id = \"$HIFIBERRY_NODE_ID\"" | grep -E "(port.name|port.direction|audio.channel)" || log_message "  No ports found"
     exit 1
 fi
 
 if [ -z "$SINK_PORTS" ]; then
-    log_message "ERROR: No input ports found for $TARGET_SINK"
-    log_message "Available ports for RAOP sink:"
-    pw-cli ls Port | grep -A 10 "$TARGET_SINK" || log_message "  No ports found at all"
+    log_message "ERROR: No input ports found for $TARGET_SINK (node ID: $RAOP_NODE_ID)"
+    log_message "Available ports for node $RAOP_NODE_ID:"
+    pw-cli ls Port | grep -A 10 "node.id = \"$RAOP_NODE_ID\"" | grep -E "(port.name|port.direction|audio.channel)" || log_message "  No ports found"
     exit 1
 fi
 
