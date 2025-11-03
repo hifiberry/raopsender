@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# configure-pipewire
+# Configures PipeWire RAOP module for AirPlay streaming
+# Creates /etc/pipewire/pipewire.conf.d/raop.conf
+
+########################################
+# Safety checks and environment
+########################################
+if [ "$(id -u)" -ne 0 ]; then
+  echo "This script requires root. Re-running with sudo..."
+  exec sudo bash "$0" "$@"
+fi
+
+########################################
+# Helper functions
+########################################
+backup_file() {
+  local f="$1"
+  if [ -e "$f" ]; then
+    local bak="$f.bak.$(date +%Y%m%d%H%M%S)"
+    echo "Backing up $f -> $bak"
+    cp -a "$f" "$bak" || true
+  fi
+}
+
+########################################
+# Configure PipeWire RAOP module
+########################################
+echo "Configuring PipeWire RAOP module for AirPlay streaming..."
+
+# Create configuration directory if it doesn't exist
+PIPEWIRE_CONF_DIR="/etc/pipewire/pipewire.conf.d"
+mkdir -p "$PIPEWIRE_CONF_DIR"
+
+# Create RAOP configuration file
+RAOP_CONF="$PIPEWIRE_CONF_DIR/raop.conf"
+backup_file "$RAOP_CONF"
+
+cat > "$RAOP_CONF" <<EOF
+context.modules = [
+    { name = libpipewire-module-raop-discover }
+]
+EOF
+
+echo "Created PipeWire RAOP configuration: $RAOP_CONF"
+echo "Configuration complete."
