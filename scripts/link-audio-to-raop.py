@@ -41,8 +41,9 @@ def check_prerequisites():
         log_message("ERROR: pw-link not found. Please install PipeWire tools.")
         return False
     
-    # Check if PipeWire is running
-    if not run_command("pw-cli info", capture_output=True):
+    # Check if PipeWire is running by listing objects
+    pipewire_output = run_command("pw-cli ls", capture_output=True)
+    if not pipewire_output or "PipeWire:Interface:Core" not in pipewire_output:
         log_message("ERROR: PipeWire is not running or accessible.")
         return False
     
