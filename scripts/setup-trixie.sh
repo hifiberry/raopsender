@@ -86,6 +86,28 @@ echo "Attempting to enable user PipeWire services for $TARGET_USER (best-effort)
 su -l "$TARGET_USER" -c "systemctl --user daemon-reload >/dev/null 2>&1 || true; systemctl --user enable --now pipewire pipewire-pulse wireplumber >/dev/null 2>&1 || true" || true
 
 ########################################
+# Configure PipeWire RAOP module
+########################################
+echo ""
+echo "Configuring PipeWire RAOP module..."
+echo ""
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PIPEWIRE_SCRIPT="$SCRIPT_DIR/configure-pipewire"
+
+if [ -f "$PIPEWIRE_SCRIPT" ]; then
+  # Make sure the script is executable
+  chmod +x "$PIPEWIRE_SCRIPT"
+  
+  # Run the PipeWire configuration script
+  "$PIPEWIRE_SCRIPT"
+else
+  echo "Warning: configure-pipewire not found at $PIPEWIRE_SCRIPT"
+  echo "You will need to manually configure PipeWire RAOP module."
+fi
+
+########################################
 # Configure autologin on tty1 (systemd getty override)
 ########################################
 GETTY_DIR="/etc/systemd/system/getty@tty1.service.d"
@@ -129,6 +151,7 @@ fi
 echo ""
 echo "Setup complete!"
 echo "- PipeWire and WirePlumber installed"
+echo "- PipeWire RAOP module configured for AirPlay streaming"
 echo "- Autologin configured for user: $TARGET_USER"
 echo "- HiFiBerry sound card overlay configured"
 echo ""
