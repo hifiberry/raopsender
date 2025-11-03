@@ -51,6 +51,10 @@ sudo ./scripts/setup-trixie-pipewire-autologin.sh
 
 ## Project-Specific Conventions
 
+### Character Conventions
+- do not use emojis in code or comments
+- use clear, descriptive variable and function names
+
 ### File Organization
 - System setup scripts in `scripts/` directory
 - Target Debian Trixie specifically (not generic Linux)
