@@ -8,7 +8,7 @@ PartOf=pipewire.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=%h/.local/bin/link-audio-to-raop
+ExecStart=%h/.local/bin/link-audio-to-raop.py
 Restart=on-failure
 RestartSec=10
 
