@@ -179,7 +179,7 @@ HIFIBERRY_NODE_ID=$(pw-cli ls Node | awk '
     }
     /node\.name = "'"$HIFIBERRY_INPUT"'"/ { node_name = "'"$HIFIBERRY_INPUT"'" }
     /media\.class = "Audio\/Source"/ { media_class = "Audio/Source" }
-    media_class == "Audio/Source" && node_name == "'"$HIFIBERRY_INPUT"'" { print current_id; exit }
+    (media_class == "Audio/Source") && (node_name == "'"$HIFIBERRY_INPUT"'") { print current_id; exit }
 ')
 log_message "HiFiBerry node ID: $HIFIBERRY_NODE_ID"
 
@@ -194,7 +194,7 @@ RAOP_NODE_ID=$(pw-cli ls Node | awk '
     }
     /node\.name = "'"$TARGET_SINK"'"/ { node_name = "'"$TARGET_SINK"'" }
     /media\.class = "Audio\/Sink"/ { media_class = "Audio/Sink" }
-    media_class == "Audio/Sink" && node_name == "'"$TARGET_SINK"'" { print current_id; exit }
+    (media_class == "Audio/Sink") && (node_name == "'"$TARGET_SINK"'") { print current_id; exit }
 ')
 log_message "RAOP sink node ID: $RAOP_NODE_ID"
 
@@ -232,7 +232,7 @@ INPUT_PORT_IDS=$(pw-cli ls Port | awk -v target_node="$HIFIBERRY_NODE_ID" '
     /port\.direction = / { match($0, /port\.direction = "([^"]*)"/, arr); direction = arr[1] }
     /port\.monitor = "true"/ { is_monitor = 1 }
     /audio\.channel/ { has_audio_channel = 1 }
-    node_id == target_node && direction == "out" && !is_monitor && has_audio_channel { 
+    (node_id == target_node) && (direction == "out") && (is_monitor == 0) && (has_audio_channel == 1) { 
         print current_id 
     }
 ')
@@ -252,7 +252,7 @@ SINK_PORT_IDS=$(pw-cli ls Port | awk -v target_node="$RAOP_NODE_ID" '
     /port\.direction = / { match($0, /port\.direction = "([^"]*)"/, arr); direction = arr[1] }
     /port\.monitor = "true"/ { is_monitor = 1 }
     /audio\.channel/ { has_audio_channel = 1 }
-    node_id == target_node && direction == "in" && !is_monitor && has_audio_channel { 
+    (node_id == target_node) && (direction == "in") && (is_monitor == 0) && (has_audio_channel == 1) { 
         print current_id 
     }
 ')
