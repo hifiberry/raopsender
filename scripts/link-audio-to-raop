@@ -154,6 +154,12 @@ fi
 
 log_message "Target sink verified: $TARGET_SINK"
 
+# Get the numeric ID for potential wpctl usage
+SINK_ID=$(pw-cli ls Node | grep -B 5 "node.name = \"$TARGET_SINK\"" | grep "id " | head -1 | sed 's/.*id \([0-9]*\).*/\1/')
+if [ -n "$SINK_ID" ]; then
+    log_message "Target sink ID: $SINK_ID (for wpctl commands)"
+fi
+
 ########################################
 # Create audio link
 ########################################
