@@ -102,21 +102,52 @@ systemctl daemon-reload
 systemctl restart getty@tty1.service || true
 
 ########################################
-# Final notes and warnings
+# Configure HiFiBerry sound card
 ########################################
-echo "\nDone. Installed PipeWire and WirePlumber (best-effort)."
-echo "Autologin configured for user: $TARGET_USER"
+echo ""
+echo "System setup complete. Now configuring HiFiBerry sound card..."
+echo ""
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOUNDCARD_SCRIPT="$SCRIPT_DIR/enable-soundcard.sh"
+
+if [ -f "$SOUNDCARD_SCRIPT" ]; then
+  # Make sure the script is executable
+  chmod +x "$SOUNDCARD_SCRIPT"
+  
+  # Run the sound card configuration script
+  "$SOUNDCARD_SCRIPT"
+else
+  echo "Warning: enable-soundcard.sh not found at $SOUNDCARD_SCRIPT"
+  echo "You will need to manually configure your HiFiBerry overlay in /boot/firmware/config.txt"
+fi
+
+########################################
+# Final notes and reboot
+########################################
+echo ""
+echo "Setup complete!"
+echo "- PipeWire and WirePlumber installed"
+echo "- Autologin configured for user: $TARGET_USER"
+echo "- HiFiBerry sound card overlay configured"
+echo ""
 
 echo "Security notes:"
 echo " - Automatic login will allow physical access to the account without a password."
 echo " - If this is for a desktop kiosk or dedicated device, it's common; on a multi-user system it may be undesirable."
 
-echo "If you need to revert autologin changes, restore the backup created at $OVERRIDE.bak.TIMESTAMP"
+echo ""
+echo "The system will reboot in 10 seconds to apply all changes..."
+echo "Press Ctrl+C to cancel the reboot."
+echo ""
 
-echo "To make the script executable locally run:"
-echo "  chmod +x ./scripts/setup-trixie-pipewire-autologin.sh"
+# Countdown
+for i in {10..1}; do
+  echo -n "$i... "
+  sleep 1
+done
 
-echo "Run it with:"
-echo "  sudo ./scripts/setup-trixie-pipewire-autologin.sh"
-
-exit 0
+echo ""
+echo "Rebooting now..."
+reboot
