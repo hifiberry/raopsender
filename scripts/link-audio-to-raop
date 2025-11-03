@@ -165,29 +165,83 @@ fi
 ########################################
 log_message "Creating audio link from $HIFIBERRY_INPUT to $TARGET_SINK..."
 
-# Get the output ports of the HiFiBerry input (typically stereo: left and right)
-log_message "Searching for output ports of $HIFIBERRY_INPUT..."
-INPUT_PORTS=$(pw-link -l | grep "$HIFIBERRY_INPUT" | grep "output" | awk '{print $1}')
+# First check if pw-link -l returns anything at all
+log_message "Checking if any ports are available..."
+all_ports=$(pw-link -l)
+if [ -z "$all_ports" ]; then
+    log_message "No ports found with pw-link -l. Checking with pw-cli ls Port..."
+    
+    # Try using pw-cli ls Port instead
+    port_info=$(pw-cli ls Port)
+    if [ -z "$port_info" ]; then
+        log_message "ERROR: No audio ports found. Audio devices may not be ready."
+        log_message "Try waiting longer or check if audio devices are properly initialized."
+        exit 1
+    fi
+    
+    # Extract ports using pw-cli output - use port IDs directly
+    log_message "Finding port IDs using pw-cli ls Port..."
+    
+    # Get output port IDs for HiFiBerry input (capture ports with direction "out")
+    # Find the node.id for our HiFiBerry input first
+    HIFIBERRY_NODE_ID=$(pw-cli ls Node | grep -B 5 "node.name = \"$HIFIBERRY_INPUT\"" | grep "id " | head -1 | sed 's/.*id \([0-9]*\).*/\1/')
+    log_message "HiFiBerry node ID: $HIFIBERRY_NODE_ID"
+    
+    # Get RAOP sink node ID
+    RAOP_NODE_ID=$(pw-cli ls Node | grep -B 5 "node.name = \"$TARGET_SINK\"" | grep "id " | head -1 | sed 's/.*id \([0-9]*\).*/\1/')
+    log_message "RAOP sink node ID: $RAOP_NODE_ID"
+    
+    if [ -z "$HIFIBERRY_NODE_ID" ] || [ -z "$RAOP_NODE_ID" ]; then
+        log_message "ERROR: Could not find node IDs"
+        exit 1
+    fi
+    
+    # Get capture port IDs (direction "out") for HiFiBerry - exclude monitor ports
+    INPUT_PORT_IDS=$(pw-cli ls Port | awk -v node_id="$HIFIBERRY_NODE_ID" '
+        /^[[:space:]]*id [0-9]+/ { current_id = $2; node_matches = 0; is_out = 0; is_monitor = 0 }
+        /node\.id = "'"$HIFIBERRY_NODE_ID"'"/ { node_matches = 1 }
+        /port\.direction = "out"/ { is_out = 1 }
+        /port\.monitor = "true"/ { is_monitor = 1 }
+        node_matches && is_out && !is_monitor && /audio\.channel/ { print current_id }
+    ')
+    
+    # Get send port IDs (direction "in") for RAOP sink
+    SINK_PORT_IDS=$(pw-cli ls Port | awk -v node_id="$RAOP_NODE_ID" '
+        /^[[:space:]]*id [0-9]+/ { current_id = $2; node_matches = 0; is_in = 0; is_monitor = 0 }
+        /node\.id = "'"$RAOP_NODE_ID"'"/ { node_matches = 1 }
+        /port\.direction = "in"/ { is_in = 1 }
+        /port\.monitor = "true"/ { is_monitor = 1 }
+        node_matches && is_in && !is_monitor && /audio\.channel/ { print current_id }
+    ')
+    
+    INPUT_PORTS="$INPUT_PORT_IDS"
+    SINK_PORTS="$SINK_PORT_IDS"
+    
+else
+    log_message "Found ports with pw-link -l, using standard method..."
+    
+    # Get the output ports of the HiFiBerry input (typically stereo: left and right)
+    log_message "Searching for output ports of $HIFIBERRY_INPUT..."
+    INPUT_PORTS=$(echo "$all_ports" | grep "$HIFIBERRY_INPUT" | grep "output" | awk '{print $1}')
 
-# Get the input ports of the target sink
-log_message "Searching for input ports of $TARGET_SINK..."
-SINK_PORTS=$(pw-link -l | grep "$TARGET_SINK" | grep "input" | awk '{print $1}')
+    # Get the input ports of the target sink
+    log_message "Searching for input ports of $TARGET_SINK..."
+    SINK_PORTS=$(echo "$all_ports" | grep "$TARGET_SINK" | grep "input" | awk '{print $1}')
+fi
 
 if [ -z "$INPUT_PORTS" ]; then
     log_message "ERROR: No output ports found for $HIFIBERRY_INPUT"
     log_message "Available ports for HiFiBerry input:"
-    pw-link -l | grep "$HIFIBERRY_INPUT" || log_message "  No ports found at all"
-    log_message "All available output ports:"
-    pw-link -l | grep "output" | head -10 || log_message "  No output ports found"
+    pw-cli ls Port | grep -A 10 "$HIFIBERRY_INPUT" || log_message "  No ports found at all"
+    log_message "All available ports:"
+    pw-cli ls Port | grep "port.name" | head -10 || log_message "  No ports found"
     exit 1
 fi
 
 if [ -z "$SINK_PORTS" ]; then
     log_message "ERROR: No input ports found for $TARGET_SINK"
     log_message "Available ports for RAOP sink:"
-    pw-link -l | grep "$TARGET_SINK" || log_message "  No ports found at all"
-    log_message "All available input ports:"
-    pw-link -l | grep "input" | head -10 || log_message "  No input ports found"
+    pw-cli ls Port | grep -A 10 "$TARGET_SINK" || log_message "  No ports found at all"
     exit 1
 fi
 
@@ -197,15 +251,15 @@ IFS=$'\n' read -d '' -r -a sink_array <<< "$SINK_PORTS" || true
 
 log_message "Found ${#input_array[@]} output ports and ${#sink_array[@]} input ports"
 
-# Link ports (typically left to left, right to right)
+# Link ports (typically left to left, right to right) using port IDs
 for i in "${!input_array[@]}"; do
     if [ $i -lt ${#sink_array[@]} ]; then
-        input_port="${input_array[i]}"
-        sink_port="${sink_array[i]}"
+        input_port_id="${input_array[i]}"
+        sink_port_id="${sink_array[i]}"
         
-        log_message "Linking: $input_port -> $sink_port"
+        log_message "Linking port IDs: $input_port_id -> $sink_port_id"
         
-        if pw-link "$input_port" "$sink_port"; then
+        if pw-link "$input_port_id" "$sink_port_id"; then
             log_message "Successfully linked port $((i+1))"
         else
             log_message "WARNING: Failed to link port $((i+1))"
