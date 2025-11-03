@@ -60,15 +60,11 @@ fi
 ########################################
 echo "Scanning for RAOP (AirPlay) sinks..."
 
-# Get all nodes with media.class = "Audio/Sink" and node.name containing "raop_sink"
-raop_sinks=$(pw-cli ls Node | grep -A 20 'type PipeWire:Interface:Node' | grep -B 20 'media.class = "Audio/Sink"' | grep -A 20 'node.name = "raop_sink' | grep -E '(node.name|node.description)' | sed 's/^[[:space:]]*//')
+# Get all RAOP sink nodes - simpler approach
+all_nodes=$(pw-cli ls Node)
 
-if [ -z "$raop_sinks" ]; then
-    echo "No RAOP sinks found."
-    echo "Make sure:"
-    echo "  1. PipeWire RAOP module is loaded (check with: pw-cli ls Module | grep raop)"
-    echo "  2. AirPlay devices are available on the network"
-    echo "  3. RAOP discovery is working (check with: pw-cli ls Node | grep raop_sink)"
+if [ -z "$all_nodes" ]; then
+    echo "Error: Could not get node list from PipeWire." >&2
     exit 1
 fi
 
@@ -78,20 +74,46 @@ fi
 declare -a sink_names=()
 declare -a sink_descriptions=()
 
-# Parse the output to extract sink names and descriptions
+# Parse node by node to find RAOP sinks
+current_node=""
 current_name=""
+current_description=""
+current_media_class=""
+
 while IFS= read -r line; do
-    if [[ $line =~ node\.name\ =\ \"(.*)\" ]]; then
-        current_name="${BASH_REMATCH[1]}"
-    elif [[ $line =~ node\.description\ =\ \"(.*)\" ]] && [ -n "$current_name" ]; then
-        sink_names+=("$current_name")
-        sink_descriptions+=("${BASH_REMATCH[1]}")
+    # Check for start of new node
+    if [[ $line =~ ^[[:space:]]*id[[:space:]]+[0-9]+.*type[[:space:]]+PipeWire:Interface:Node ]]; then
+        # Process previous node if it was a RAOP sink
+        if [[ "$current_name" =~ raop_sink\. ]] && [[ "$current_media_class" == "Audio/Sink" ]] && [ -n "$current_description" ]; then
+            sink_names+=("$current_name")
+            sink_descriptions+=("$current_description")
+        fi
+        
+        # Reset for new node
         current_name=""
+        current_description=""
+        current_media_class=""
+    elif [[ $line =~ ^[[:space:]]*node\.name[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
+        current_name="${BASH_REMATCH[1]}"
+    elif [[ $line =~ ^[[:space:]]*node\.description[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
+        current_description="${BASH_REMATCH[1]}"
+    elif [[ $line =~ ^[[:space:]]*media\.class[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
+        current_media_class="${BASH_REMATCH[1]}"
     fi
-done <<< "$raop_sinks"
+done <<< "$all_nodes"
+
+# Don't forget the last node
+if [[ "$current_name" =~ raop_sink\. ]] && [[ "$current_media_class" == "Audio/Sink" ]] && [ -n "$current_description" ]; then
+    sink_names+=("$current_name")
+    sink_descriptions+=("$current_description")
+fi
 
 if [ ${#sink_names[@]} -eq 0 ]; then
-    echo "No RAOP sinks could be parsed from PipeWire output."
+    echo "No RAOP sinks found."
+    echo "Make sure:"
+    echo "  1. PipeWire RAOP module is loaded (check with: pw-cli ls Module | grep raop)"
+    echo "  2. AirPlay devices are available on the network"
+    echo "  3. RAOP discovery is working (check with: pw-cli ls Node | grep raop_sink)"
     exit 1
 fi
 
