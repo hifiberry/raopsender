@@ -65,13 +65,67 @@ sleep 5
 ########################################
 log_message "Searching for HiFiBerry ADC input..."
 
-# Look for the HiFiBerry input node (Audio/Source with HiFiBerry in the name)
-HIFIBERRY_INPUT=$(pw-cli ls Node | grep -A 10 'media.class = "Audio/Source"' | grep -B 10 -i hifiberry | grep 'node.name = ' | head -1 | sed 's/.*node.name = "\(.*\)"/\1/')
+# Get all nodes and find HiFiBerry input source
+all_nodes=$(pw-cli ls Node)
+
+if [ -z "$all_nodes" ]; then
+    log_message "ERROR: Could not get node list from PipeWire."
+    exit 1
+fi
+
+# Parse nodes to find HiFiBerry input
+HIFIBERRY_INPUT=""
+current_name=""
+current_description=""
+current_media_class=""
+
+while IFS= read -r line; do
+    # Check for start of new node
+    if [[ $line =~ ^[[:space:]]*id[[:space:]]+[0-9]+.*type[[:space:]]+PipeWire:Interface:Node ]]; then
+        # Check if previous node was a HiFiBerry input
+        if [[ "$current_media_class" == "Audio/Source" ]] && [[ "$current_description" =~ [Hh]ifi[Bb]erry ]] && [ -n "$current_name" ]; then
+            HIFIBERRY_INPUT="$current_name"
+            break
+        fi
+        
+        # Reset for new node
+        current_name=""
+        current_description=""
+        current_media_class=""
+    elif [[ $line =~ ^[[:space:]]*node\.name[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
+        current_name="${BASH_REMATCH[1]}"
+    elif [[ $line =~ ^[[:space:]]*node\.description[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
+        current_description="${BASH_REMATCH[1]}"
+    elif [[ $line =~ ^[[:space:]]*media\.class[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
+        current_media_class="${BASH_REMATCH[1]}"
+    fi
+done <<< "$all_nodes"
+
+# Check the last node too
+if [ -z "$HIFIBERRY_INPUT" ] && [[ "$current_media_class" == "Audio/Source" ]] && [[ "$current_description" =~ [Hh]ifi[Bb]erry ]] && [ -n "$current_name" ]; then
+    HIFIBERRY_INPUT="$current_name"
+fi
 
 if [ -z "$HIFIBERRY_INPUT" ]; then
     log_message "ERROR: Could not find HiFiBerry ADC input device."
     log_message "Available audio sources:"
-    pw-cli ls Node | grep -A 2 'media.class = "Audio/Source"' | grep 'node.name\|node.description'
+    # Show all audio sources for debugging
+    while IFS= read -r line; do
+        if [[ $line =~ ^[[:space:]]*id[[:space:]]+[0-9]+.*type[[:space:]]+PipeWire:Interface:Node ]]; then
+            current_name=""
+            current_description=""
+            current_media_class=""
+        elif [[ $line =~ ^[[:space:]]*node\.name[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
+            current_name="${BASH_REMATCH[1]}"
+        elif [[ $line =~ ^[[:space:]]*node\.description[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
+            current_description="${BASH_REMATCH[1]}"
+        elif [[ $line =~ ^[[:space:]]*media\.class[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
+            current_media_class="${BASH_REMATCH[1]}"
+            if [[ "$current_media_class" == "Audio/Source" ]] && [ -n "$current_name" ] && [ -n "$current_description" ]; then
+                log_message "  - $current_description ($current_name)"
+            fi
+        fi
+    done <<< "$all_nodes"
     exit 1
 fi
 
