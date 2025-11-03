@@ -87,20 +87,51 @@ echo "Installed: $SYSTEMD_USER_DIR/raop-audio-link.service"
 ########################################
 echo "Enabling systemd user service..."
 
-# Function to run commands as the target user
+# Function to run commands as the target user with proper environment
 run_as_user() {
     if [ "$(id -u)" -eq 0 ]; then
-        su -l "$TARGET_USER" -c "$1"
+        # When running as root, we need to set up the environment properly
+        TARGET_UID=$(id -u "$TARGET_USER")
+        XDG_RUNTIME_DIR="/run/user/$TARGET_UID"
+        
+        # Use machinectl to run commands in the user's session if available
+        if command -v machinectl >/dev/null 2>&1 && systemctl is-active --quiet user@${TARGET_UID}.service; then
+            machinectl shell "$TARGET_USER@" /bin/bash -c "$1"
+        else
+            # Fallback: set environment and run as user
+            su -l "$TARGET_USER" -c "export XDG_RUNTIME_DIR='$XDG_RUNTIME_DIR'; $1"
+        fi
     else
         bash -c "$1"
     fi
 }
 
-# Reload systemd user daemon
-run_as_user "systemctl --user daemon-reload"
-
-# Enable the service
-run_as_user "systemctl --user enable raop-audio-link.service"
+# Check if user session is active
+if [ "$(id -u)" -eq 0 ]; then
+    TARGET_UID=$(id -u "$TARGET_USER")
+    if ! systemctl is-active --quiet user@${TARGET_UID}.service; then
+        echo "User session not active. Enabling service for next login..."
+        # Just enable without starting - it will start on next login
+        run_as_user "systemctl --user daemon-reload" || echo "Note: Service will be loaded on next user login"
+        run_as_user "systemctl --user enable raop-audio-link.service" || {
+            echo "Warning: Could not enable service via systemctl. Creating enable symlink manually..."
+            # Manual enable by creating symlink
+            WANTS_DIR="$TARGET_HOME/.config/systemd/user/pipewire.service.wants"
+            mkdir -p "$WANTS_DIR"
+            ln -sf "../raop-audio-link.service" "$WANTS_DIR/raop-audio-link.service"
+            chown -R "$TARGET_USER:$TARGET_USER" "$WANTS_DIR"
+            echo "Service will be enabled on next user login."
+        }
+    else
+        # User session is active, try normal enable
+        run_as_user "systemctl --user daemon-reload"
+        run_as_user "systemctl --user enable raop-audio-link.service"
+    fi
+else
+    # Running as user, normal operation
+    run_as_user "systemctl --user daemon-reload"
+    run_as_user "systemctl --user enable raop-audio-link.service"
+fi
 
 echo ""
 echo "Installation complete!"
