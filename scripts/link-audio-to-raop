@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# link-audio-to-raop
+# Links the HiFiBerry ADC input to the selected RAOP sink
+# Reads the target sink from ~/.config/raop-sink-name
+
+########################################
+# Configuration
+########################################
+CONFIG_FILE="$HOME/.config/raop-sink-name"
+LOG_TAG="raop-audio-link"
+
+# Function to log messages
+log_message() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [$LOG_TAG] $1"
+}
+
+########################################
+# Check prerequisites
+########################################
+if ! command -v pw-link >/dev/null 2>&1; then
+    log_message "ERROR: pw-link not found. Please install PipeWire tools."
+    exit 1
+fi
+
+if ! command -v pw-cli >/dev/null 2>&1; then
+    log_message "ERROR: pw-cli not found. Please install PipeWire."
+    exit 1
+fi
+
+# Check if PipeWire is running
+if ! pw-cli info >/dev/null 2>&1; then
+    log_message "ERROR: PipeWire is not running or accessible."
+    exit 1
+fi
+
+# Check if config file exists
+if [ ! -f "$CONFIG_FILE" ]; then
+    log_message "ERROR: Configuration file not found: $CONFIG_FILE"
+    log_message "Please run select-raop-sink script first to choose a target sink."
+    exit 1
+fi
+
+########################################
+# Read target sink
+########################################
+TARGET_SINK=$(cat "$CONFIG_FILE" | tr -d '\n' | xargs)
+
+if [ -z "$TARGET_SINK" ]; then
+    log_message "ERROR: No target sink specified in $CONFIG_FILE"
+    exit 1
+fi
+
+log_message "Target RAOP sink: $TARGET_SINK"
+
+########################################
+# Wait for audio devices to be ready
+########################################
+log_message "Waiting 5 seconds for audio devices to initialize..."
+sleep 5
+
+########################################
+# Find HiFiBerry ADC input
+########################################
+log_message "Searching for HiFiBerry ADC input..."
+
+# Look for the HiFiBerry input node (Audio/Source with HiFiBerry in the name)
+HIFIBERRY_INPUT=$(pw-cli ls Node | grep -A 10 'media.class = "Audio/Source"' | grep -B 10 -i hifiberry | grep 'node.name = ' | head -1 | sed 's/.*node.name = "\(.*\)"/\1/')
+
+if [ -z "$HIFIBERRY_INPUT" ]; then
+    log_message "ERROR: Could not find HiFiBerry ADC input device."
+    log_message "Available audio sources:"
+    pw-cli ls Node | grep -A 2 'media.class = "Audio/Source"' | grep 'node.name\|node.description'
+    exit 1
+fi
+
+log_message "Found HiFiBerry input: $HIFIBERRY_INPUT"
+
+########################################
+# Verify target sink exists
+########################################
+log_message "Verifying target RAOP sink exists..."
+
+if ! pw-cli ls Node | grep -q "node.name = \"$TARGET_SINK\""; then
+    log_message "ERROR: Target sink not found: $TARGET_SINK"
+    log_message "Available RAOP sinks:"
+    pw-cli ls Node | grep -A 2 'media.class = "Audio/Sink"' | grep 'raop_sink' | grep 'node.name\|node.description'
+    exit 1
+fi
+
+log_message "Target sink verified: $TARGET_SINK"
+
+########################################
+# Create audio link
+########################################
+log_message "Creating audio link from $HIFIBERRY_INPUT to $TARGET_SINK..."
+
+# Get the output ports of the HiFiBerry input (typically stereo: left and right)
+INPUT_PORTS=$(pw-link -l | grep "$HIFIBERRY_INPUT" | grep "output" | awk '{print $1}')
+
+# Get the input ports of the target sink
+SINK_PORTS=$(pw-link -l | grep "$TARGET_SINK" | grep "input" | awk '{print $1}')
+
+if [ -z "$INPUT_PORTS" ]; then
+    log_message "ERROR: No output ports found for $HIFIBERRY_INPUT"
+    exit 1
+fi
+
+if [ -z "$SINK_PORTS" ]; then
+    log_message "ERROR: No input ports found for $TARGET_SINK"
+    exit 1
+fi
+
+# Convert to arrays
+IFS=$'\n' read -d '' -r -a input_array <<< "$INPUT_PORTS" || true
+IFS=$'\n' read -d '' -r -a sink_array <<< "$SINK_PORTS" || true
+
+log_message "Found ${#input_array[@]} output ports and ${#sink_array[@]} input ports"
+
+# Link ports (typically left to left, right to right)
+for i in "${!input_array[@]}"; do
+    if [ $i -lt ${#sink_array[@]} ]; then
+        input_port="${input_array[i]}"
+        sink_port="${sink_array[i]}"
+        
+        log_message "Linking: $input_port -> $sink_port"
+        
+        if pw-link "$input_port" "$sink_port"; then
+            log_message "Successfully linked port $((i+1))"
+        else
+            log_message "WARNING: Failed to link port $((i+1))"
+        fi
+    fi
+done
+
+########################################
+# Verify connections
+########################################
+log_message "Verifying audio connections..."
+connected_links=$(pw-link -l | grep -c "$HIFIBERRY_INPUT.*$TARGET_SINK" || true)
+
+if [ "$connected_links" -gt 0 ]; then
+    log_message "SUCCESS: Audio link established ($connected_links connections active)"
+    log_message "HiFiBerry ADC input is now streaming to RAOP sink"
+else
+    log_message "WARNING: No active connections detected"
+fi
+
+log_message "Audio linking completed."

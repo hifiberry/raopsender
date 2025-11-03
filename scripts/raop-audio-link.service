@@ -1,0 +1,24 @@
+[Unit]
+Description=Link HiFiBerry ADC to RAOP AirPlay sink
+Documentation=man:pipewire(1)
+After=pipewire.service wireplumber.service
+Wants=pipewire.service wireplumber.service
+PartOf=pipewire.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=%h/.local/bin/link-audio-to-raop
+Restart=on-failure
+RestartSec=10
+
+# Environment
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=raop-audio-link
+
+[Install]
+WantedBy=pipewire.service

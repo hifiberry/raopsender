@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# select-raop-sink
+# Lists available RAOP sinks and allows user to select one
+# Saves the selected sink name to ~/.config/raop-sink-name
+
+########################################
+# Check if PipeWire is running
+########################################
+if ! command -v pw-cli >/dev/null 2>&1; then
+    echo "Error: pw-cli not found. Please install PipeWire." >&2
+    exit 1
+fi
+
+if ! pw-cli info >/dev/null 2>&1; then
+    echo "Error: PipeWire is not running or accessible." >&2
+    exit 1
+fi
+
+########################################
+# Get RAOP sinks
+########################################
+echo "Scanning for RAOP (AirPlay) sinks..."
+
+# Get all nodes with media.class = "Audio/Sink" and node.name containing "raop_sink"
+raop_sinks=$(pw-cli ls Node | grep -A 20 'type PipeWire:Interface:Node' | grep -B 20 'media.class = "Audio/Sink"' | grep -A 20 'node.name = "raop_sink' | grep -E '(node.name|node.description)' | sed 's/^[[:space:]]*//')
+
+if [ -z "$raop_sinks" ]; then
+    echo "No RAOP sinks found."
+    echo "Make sure:"
+    echo "  1. PipeWire RAOP module is loaded (check with: pw-cli ls Module | grep raop)"
+    echo "  2. AirPlay devices are available on the network"
+    echo "  3. RAOP discovery is working (check with: pw-cli ls Node | grep raop_sink)"
+    exit 1
+fi
+
+########################################
+# Parse and display sinks
+########################################
+declare -a sink_names=()
+declare -a sink_descriptions=()
+
+# Parse the output to extract sink names and descriptions
+current_name=""
+while IFS= read -r line; do
+    if [[ $line =~ node\.name\ =\ \"(.*)\" ]]; then
+        current_name="${BASH_REMATCH[1]}"
+    elif [[ $line =~ node\.description\ =\ \"(.*)\" ]] && [ -n "$current_name" ]; then
+        sink_names+=("$current_name")
+        sink_descriptions+=("${BASH_REMATCH[1]}")
+        current_name=""
+    fi
+done <<< "$raop_sinks"
+
+if [ ${#sink_names[@]} -eq 0 ]; then
+    echo "No RAOP sinks could be parsed from PipeWire output."
+    exit 1
+fi
+
+########################################
+# Display menu and get user selection
+########################################
+echo ""
+echo "Available RAOP (AirPlay) sinks:"
+echo "================================"
+
+for i in "${!sink_names[@]}"; do
+    printf "%2d) %s\n" $((i+1)) "${sink_descriptions[i]}"
+done
+
+echo ""
+echo -n "Select a sink (1-${#sink_names[@]}): "
+read -r selection
+
+# Validate selection
+if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt ${#sink_names[@]} ]; then
+    echo "Invalid selection. Please enter a number between 1 and ${#sink_names[@]}." >&2
+    exit 1
+fi
+
+# Get selected sink (adjust for 0-based array)
+selected_index=$((selection-1))
+selected_sink="${sink_names[selected_index]}"
+selected_description="${sink_descriptions[selected_index]}"
+
+########################################
+# Save selection to config file
+########################################
+config_dir="$HOME/.config"
+config_file="$config_dir/raop-sink-name"
+
+# Create config directory if it doesn't exist
+mkdir -p "$config_dir"
+
+# Save the sink name
+echo "$selected_sink" > "$config_file"
+
+echo ""
+echo "Selected: $selected_description"
+echo "Sink name: $selected_sink"
+echo "Saved to: $config_file"
+echo ""
+echo "You can now use this sink for audio playback with:"
+echo "  pw-play --target=\"$selected_sink\" <audio_file>"
+echo "Or set it as default sink with:"
+echo "  wpctl set-default \"$selected_sink\""

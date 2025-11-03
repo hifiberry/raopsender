@@ -146,6 +146,26 @@ else
 fi
 
 ########################################
+# Install RAOP audio linking service
+########################################
+echo ""
+echo "Installing RAOP audio linking systemd service..."
+echo ""
+
+RAOP_SERVICE_SCRIPT="$SCRIPT_DIR/install-raop-service"
+
+if [ -f "$RAOP_SERVICE_SCRIPT" ]; then
+  # Make sure the script is executable
+  chmod +x "$RAOP_SERVICE_SCRIPT"
+  
+  # Run the RAOP service installation script
+  "$RAOP_SERVICE_SCRIPT"
+else
+  echo "Warning: install-raop-service not found at $RAOP_SERVICE_SCRIPT"
+  echo "You will need to manually install the RAOP audio linking service."
+fi
+
+########################################
 # Final notes and reboot
 ########################################
 echo ""
@@ -154,6 +174,13 @@ echo "- PipeWire and WirePlumber installed"
 echo "- PipeWire RAOP module configured for AirPlay streaming"
 echo "- Autologin configured for user: $TARGET_USER"
 echo "- HiFiBerry sound card overlay configured"
+echo "- RAOP audio linking systemd service installed"
+echo ""
+
+echo "Next steps after reboot:"
+echo "1. Run 'select-raop-sink' to choose your AirPlay target device"
+echo "2. The audio link service will automatically start with PipeWire"
+echo "3. Check service status with: systemctl --user status raop-audio-link.service"
 echo ""
 
 echo "Security notes:"

@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# install-raop-service
+# Installs the RAOP audio linking systemd user service
+
+########################################
+# Safety checks
+########################################
+TARGET_USER="${SUDO_USER:-${USER:-}}"
+TARGET_USER="$(echo "$TARGET_USER" | tr -d '\n' | xargs)"
+
+if [ -z "$TARGET_USER" ]; then
+  echo "Could not determine target user." >&2
+  exit 1
+fi
+
+# If running as root, we need to install for the target user
+if [ "$(id -u)" -eq 0 ]; then
+    TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+else
+    TARGET_HOME="$HOME"
+    TARGET_USER="$USER"
+fi
+
+echo "Installing RAOP audio service for user: $TARGET_USER"
+echo "Target home directory: $TARGET_HOME"
+
+########################################
+# Get script directory
+########################################
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+########################################
+# Install the audio linking script
+########################################
+echo "Installing audio linking script..."
+
+# Create local bin directory
+LOCAL_BIN_DIR="$TARGET_HOME/.local/bin"
+mkdir -p "$LOCAL_BIN_DIR"
+
+# Copy the script
+LINK_SCRIPT="$SCRIPT_DIR/link-audio-to-raop"
+if [ ! -f "$LINK_SCRIPT" ]; then
+    echo "ERROR: link-audio-to-raop script not found at $LINK_SCRIPT" >&2
+    exit 1
+fi
+
+cp "$LINK_SCRIPT" "$LOCAL_BIN_DIR/"
+chmod +x "$LOCAL_BIN_DIR/link-audio-to-raop"
+
+# Set ownership if running as root
+if [ "$(id -u)" -eq 0 ]; then
+    chown "$TARGET_USER:$TARGET_USER" "$LOCAL_BIN_DIR/link-audio-to-raop"
+fi
+
+echo "Installed: $LOCAL_BIN_DIR/link-audio-to-raop"
+
+########################################
+# Install the systemd service
+########################################
+echo "Installing systemd user service..."
+
+# Create systemd user directory
+SYSTEMD_USER_DIR="$TARGET_HOME/.config/systemd/user"
+mkdir -p "$SYSTEMD_USER_DIR"
+
+# Copy the service file
+SERVICE_FILE="$SCRIPT_DIR/raop-audio-link.service"
+if [ ! -f "$SERVICE_FILE" ]; then
+    echo "ERROR: raop-audio-link.service file not found at $SERVICE_FILE" >&2
+    exit 1
+fi
+
+cp "$SERVICE_FILE" "$SYSTEMD_USER_DIR/"
+
+# Set ownership if running as root
+if [ "$(id -u)" -eq 0 ]; then
+    chown -R "$TARGET_USER:$TARGET_USER" "$SYSTEMD_USER_DIR"
+fi
+
+echo "Installed: $SYSTEMD_USER_DIR/raop-audio-link.service"
+
+########################################
+# Enable and start the service
+########################################
+echo "Enabling systemd user service..."
+
+# Function to run commands as the target user
+run_as_user() {
+    if [ "$(id -u)" -eq 0 ]; then
+        su -l "$TARGET_USER" -c "$1"
+    else
+        bash -c "$1"
+    fi
+}
+
+# Reload systemd user daemon
+run_as_user "systemctl --user daemon-reload"
+
+# Enable the service
+run_as_user "systemctl --user enable raop-audio-link.service"
+
+echo ""
+echo "Installation complete!"
+echo ""
+echo "The service will automatically start when PipeWire starts."
+echo "To manually control the service:"
+echo "  Start:   systemctl --user start raop-audio-link.service"
+echo "  Stop:    systemctl --user stop raop-audio-link.service"
+echo "  Status:  systemctl --user status raop-audio-link.service"
+echo "  Logs:    journalctl --user -u raop-audio-link.service"
+echo ""
+echo "Note: Make sure to run 'select-raop-sink' first to choose your target AirPlay device."
