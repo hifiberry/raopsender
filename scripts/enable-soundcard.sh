@@ -76,6 +76,10 @@ echo "Removing any existing HiFiBerry overlays from $CONFIG_FILE..."
 # Remove existing HiFiBerry overlay lines (commented or uncommented)
 sed -i '/^#*dtoverlay=hifiberry-/d' "$CONFIG_FILE" || true
 
+# Remove any existing onboard/HDMI audio settings so we can set them explicitly
+sed -i '/^#*dtparam=audio=/d' "$CONFIG_FILE" || true
+sed -i '/^#*hdmi_ignore_audio=/d' "$CONFIG_FILE" || true
+
 echo "Adding dtoverlay=$OVERLAY to $CONFIG_FILE..."
 
 # Check if there's already a [all] section, if not add one
@@ -89,6 +93,15 @@ sed -i "/^\[all\]/a dtoverlay=$OVERLAY" "$CONFIG_FILE" || {
   # Fallback: just append to the end of the file
   echo "dtoverlay=$OVERLAY" >> "$CONFIG_FILE"
 }
+
+# Ensure onboard analog/HDMI audio are disabled for exclusive HiFiBerry use
+# Add dtparam=audio=off and hdmi_ignore_audio=1 under [all] as well
+if ! grep -q '^dtparam=audio=off' "$CONFIG_FILE"; then
+  sed -i "/^\[all\]/a dtparam=audio=off" "$CONFIG_FILE" || true
+fi
+if ! grep -q '^hdmi_ignore_audio=1' "$CONFIG_FILE"; then
+  sed -i "/^\[all\]/a hdmi_ignore_audio=1" "$CONFIG_FILE" || true
+fi
 
 ########################################
 # Verification and final notes
