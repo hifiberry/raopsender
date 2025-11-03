@@ -166,18 +166,28 @@ fi
 log_message "Creating audio link from $HIFIBERRY_INPUT to $TARGET_SINK..."
 
 # Get the output ports of the HiFiBerry input (typically stereo: left and right)
+log_message "Searching for output ports of $HIFIBERRY_INPUT..."
 INPUT_PORTS=$(pw-link -l | grep "$HIFIBERRY_INPUT" | grep "output" | awk '{print $1}')
 
 # Get the input ports of the target sink
+log_message "Searching for input ports of $TARGET_SINK..."
 SINK_PORTS=$(pw-link -l | grep "$TARGET_SINK" | grep "input" | awk '{print $1}')
 
 if [ -z "$INPUT_PORTS" ]; then
     log_message "ERROR: No output ports found for $HIFIBERRY_INPUT"
+    log_message "Available ports for HiFiBerry input:"
+    pw-link -l | grep "$HIFIBERRY_INPUT" || log_message "  No ports found at all"
+    log_message "All available output ports:"
+    pw-link -l | grep "output" | head -10 || log_message "  No output ports found"
     exit 1
 fi
 
 if [ -z "$SINK_PORTS" ]; then
     log_message "ERROR: No input ports found for $TARGET_SINK"
+    log_message "Available ports for RAOP sink:"
+    pw-link -l | grep "$TARGET_SINK" || log_message "  No ports found at all"
+    log_message "All available input ports:"
+    pw-link -l | grep "input" | head -10 || log_message "  No input ports found"
     exit 1
 fi
 
