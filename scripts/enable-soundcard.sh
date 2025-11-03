@@ -35,6 +35,36 @@ backup_file() {
 }
 
 ########################################
+# Check if HiFiBerry is already configured
+########################################
+echo "Checking for existing HiFiBerry sound card..."
+
+if command -v aplay >/dev/null 2>&1; then
+  # Check if aplay -l shows any HiFiBerry devices
+  if aplay -l 2>/dev/null | grep -qi hifiberry; then
+    echo ""
+    echo "HiFiBerry sound card already detected:"
+    echo "======================================"
+    aplay -l | grep -i hifiberry || true
+    echo ""
+    echo "HiFiBerry overlay appears to be already configured."
+    echo "Skipping sound card configuration."
+    echo ""
+    echo "To verify recording capability:"
+    echo "  arecord -l"
+    echo ""
+    exit 0
+  else
+    echo "No HiFiBerry sound card detected in aplay output."
+    echo "Proceeding with configuration..."
+    echo ""
+  fi
+else
+  echo "Warning: aplay command not found. Proceeding with configuration..."
+  echo ""
+fi
+
+########################################
 # User selection
 ########################################
 echo "HiFiBerry Sound Card Configuration"
