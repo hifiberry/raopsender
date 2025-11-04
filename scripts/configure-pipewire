@@ -39,6 +39,11 @@ RAOP_CONF="$PIPEWIRE_CONF_DIR/raop.conf"
 backup_file "$RAOP_CONF"
 
 cat > "$RAOP_CONF" <<EOF
+context.properties = {
+    default.clock.rate          = 48000
+    default.clock.allowed-rates = [ 44100 48000 96000 192000 ]
+}
+
 context.modules = [
     {
         name = libpipewire-module-raop-discover
