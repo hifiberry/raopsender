@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# set-default-source
+# Sets the HiFiBerry ADC input as the default PipeWire audio source
+# This ensures applications like vumz use the analog input by default
+
+########################################
+# Helper functions
+########################################
+log_message() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+########################################
+# Find and set HiFiBerry as default source
+########################################
+log_message "Finding HiFiBerry audio source..."
+
+# Find the HiFiBerry audio input node ID
+HIFIBERRY_ID=$(pw-cli ls Node | awk '
+/id [0-9]+.*Node/ {
+    id=$2; 
+    gsub(/,/,"",id)
+} 
+/alsa_input\.platform-soc_sound/ {
+    print id; 
+    exit
+}')
+
+if [ -z "$HIFIBERRY_ID" ]; then
+    log_message "ERROR: Could not find HiFiBerry audio source"
+    log_message "Available audio sources:"
+    pw-cli ls Node | grep -A 3 'media.class = "Audio/Source"' | grep "node.name"
+    exit 1
+fi
+
+log_message "Found HiFiBerry audio source: Node ID $HIFIBERRY_ID"
+
+# Get the current default source for comparison
+CURRENT_DEFAULT=$(wpctl status | grep -A 10 "Audio" | grep -A 5 "Sources:" | grep "\*" | head -1 | awk '{print $2}' || echo "none")
+
+if [ "$CURRENT_DEFAULT" = "$HIFIBERRY_ID" ]; then
+    log_message "HiFiBerry is already the default audio source"
+else
+    log_message "Setting HiFiBerry as default audio source..."
+    
+    # Set as default source
+    if wpctl set-default "$HIFIBERRY_ID"; then
+        log_message "✅ Successfully set HiFiBerry as default audio source"
+        
+        # Verify the change
+        NEW_DEFAULT=$(wpctl status | grep -A 10 "Audio" | grep -A 5 "Sources:" | grep "\*" | head -1 | awk '{print $2}' || echo "none")
+        if [ "$NEW_DEFAULT" = "$HIFIBERRY_ID" ]; then
+            log_message "✅ Verified: HiFiBerry is now the default source"
+        else
+            log_message "⚠️  Warning: Default source may not have changed correctly"
+        fi
+    else
+        log_message "❌ Failed to set HiFiBerry as default source"
+        exit 1
+    fi
+fi
+
+########################################
+# Show current status
+########################################
+log_message "Current audio setup:"
+echo
+echo "Default audio source:"
+wpctl status | grep -A 10 "Audio" | grep -A 5 "Sources:" | grep "\*" || echo "  No default source set"
+echo
+echo "Available sources:"
+wpctl status | grep -A 10 "Audio" | grep -A 5 "Sources:" | grep -E "^  [0-9]+\." | head -5
+
+echo
+log_message "HiFiBerry is ready for audio monitoring and recording"
+log_message "You can now run: vumz"
