@@ -26,3 +26,68 @@ Notes and next steps
 - Security: automatic login removes the password prompt for local console access — only enable on trusted or dedicated devices.
 
 Want help wiring the capture pipeline or adding a systemd service to start the forwarder at boot? Tell me your HiFiBerry model and preferred sender method (PipeWire RAOP, PulseAudio RAOP, or an external sender) and I can add an example service and configuration.
+
+## Recording your analog audio
+
+The raopsender setup also enables high-quality recording from your HiFiBerry ADC. Here's how to record analog sources like vinyl records, cassettes, or any line-level audio.
+
+### Basic Recording Command
+
+```bash
+pw-record --format s16 --channels 2 --rate 48000 --target alsa_input.platform-soc_sound.stereo-fallback output.wav
+```
+
+### Recording a 25-Minute Vinyl Record Side
+
+For a typical LP side (around 25 minutes), use the `timeout` command to automatically stop recording:
+
+```bash
+# Record for exactly 25 minutes (1500 seconds)
+timeout 1500s pw-record \
+    --format s16 \
+    --channels 2 \
+    --rate 48000 \
+    --target alsa_input.platform-soc_sound.stereo-fallback \
+    vinyl_side_$(date +%Y%m%d-%H%M%S).wav
+```
+
+### Recording Parameters Explained
+
+- `--format s16`: 16-bit signed integer (CD quality, good balance of quality/file size)
+- `--channels 2`: Stereo recording (left and right channels)  
+- `--rate 48000`: 48kHz sample rate (matches HiFiBerry DAC+ADC Pro native rate)
+- `--target alsa_input.platform-soc_sound.stereo-fallback`: HiFiBerry ADC input device
+- `timeout 1500s`: Stop recording after 1500 seconds (25 minutes)
+
+### File Size Estimation
+
+A 25-minute recording at 48kHz/16-bit stereo will be approximately:
+
+- **File size**: ~288 MB (48000 × 2 bytes × 2 channels × 1500 seconds)
+- **Duration**: Exactly 25:00 minutes
+
+### Recording Tips
+
+1. **Test audio levels first** with a short recording:
+
+   ```bash
+   timeout 10s pw-record --format s16 --channels 2 --rate 48000 \
+       --target alsa_input.platform-soc_sound.stereo-fallback test.wav
+   ```
+
+2. **Split long recordings** by track later using audio editing software like Audacity or command-line tools.
+
+### Checking Your Recording
+
+After recording, verify the file:
+
+```bash
+# Check file info
+file vinyl_side_*.wav
+
+# Play back to test
+pw-play vinyl_side_*.wav
+
+# Check duration and technical details
+ffprobe vinyl_side_*.wav
+```
