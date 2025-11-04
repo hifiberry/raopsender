@@ -56,7 +56,7 @@ context.modules = [
                          #raop.audio.codec = "PCM" | "ALAC" | "AAC" | "AAC-ELD"
                          raop.audio.codec = "ALAC"
                          audio.channels = 2
-                         audio.format = "S16""
+                         audio.format = "S16"
                          audio.rate = 48000
                          #device.model = ""
                     }
