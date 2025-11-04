@@ -75,7 +75,17 @@ A 25-minute recording at 48kHz/16-bit stereo will be approximately:
        --target alsa_input.platform-soc_sound.stereo-fallback test.wav
    ```
 
-2. **Split long recordings** by track later using audio editing software like Audacity or command-line tools.
+2. **Monitor audio levels** during recording (install VU meter first):
+
+   ```bash
+   # Install the vumz VU meter (one time setup)
+   sudo ./scripts/install-vu-meter
+   
+   # Monitor HiFiBerry levels in real-time
+   hifiberry-vu
+   ```
+
+3. **Split long recordings** by track later using audio editing software like Audacity or command-line tools.
 
 ### Checking Your Recording
 
