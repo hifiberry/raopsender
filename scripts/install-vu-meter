@@ -45,7 +45,8 @@ apt-get install -y \
   pkg-config \
   libpulse-dev \
   libncurses5-dev \
-  libncursesw5-dev
+  libncursesw5-dev \
+  libpipewire-0.3-dev
 
 ########################################
 # Clone and build vumz
@@ -80,8 +81,8 @@ make -j$(nproc)
 ########################################
 log_message "Installing vumz to /usr/local/bin..."
 
-# Install the binary
-cp vumz /usr/local/bin/
+# Install the binary (it's built in the build subdirectory)
+cp build/vumz /usr/local/bin/
 chmod +x /usr/local/bin/vumz
 
 # Verify installation
