@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# install-vu-meter
+# Installs vumz VU meter from https://github.com/IonelPopJara/vumz
+# A real-time audio VU meter for PipeWire/PulseAudio
+
+########################################
+# Safety checks and environment
+########################################
+if [ "$(id -u)" -ne 0 ]; then
+  echo "This script requires root. Re-running with sudo..."
+  exec sudo bash "$0" "$@"
+fi
+
+# Get the actual user (not root when using sudo)
+ACTUAL_USER="${SUDO_USER:-$USER}"
+if [ "$ACTUAL_USER" = "root" ]; then
+  echo "ERROR: Please run this script as a regular user with sudo, not as root directly"
+  exit 1
+fi
+
+ACTUAL_HOME=$(getent passwd "$ACTUAL_USER" | cut -d: -f6)
+
+########################################
+# Helper functions
+########################################
+log_message() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+########################################
+# Install dependencies
+########################################
+log_message "Installing dependencies for vumz VU meter..."
+
+# Update package list
+apt-get update
+
+# Install required packages
+apt-get install -y \
+  git \
+  build-essential \
+  cmake \
+  pkg-config \
+  libpulse-dev \
+  libncurses5-dev \
+  libncursesw5-dev
+
+########################################
+# Clone and build vumz
+########################################
+log_message "Cloning vumz from GitHub..."
+
+# Work in /tmp for building
+cd /tmp
+
+# Remove any existing clone
+rm -rf vumz
+
+# Clone the repository
+git clone https://github.com/IonelPopJara/vumz.git
+
+cd vumz
+
+log_message "Building vumz..."
+
+# Create build directory
+mkdir -p build
+cd build
+
+# Configure with cmake
+cmake ..
+
+# Build the project
+make -j$(nproc)
+
+########################################
+# Install vumz
+########################################
+log_message "Installing vumz to /usr/local/bin..."
+
+# Install the binary
+cp vumz /usr/local/bin/
+chmod +x /usr/local/bin/vumz
+
+# Verify installation
+if command -v vumz >/dev/null 2>&1; then
+  log_message "✅ vumz installed successfully!"
+  vumz --version || echo "vumz version: $(vumz --help | head -1)"
+else
+  log_message "❌ vumz installation failed"
+  exit 1
+fi
+
+########################################
+# Create convenience script
+########################################
+log_message "Creating convenience script for HiFiBerry monitoring..."
+
+cat > /usr/local/bin/hifiberry-vu << 'EOF'
+#!/bin/bash
+# hifiberry-vu - Monitor HiFiBerry ADC levels with vumz
+
+# Find HiFiBerry source
+HIFIBERRY_SOURCE=$(pactl list sources short | grep -E "(platform-soc_sound|hifiberry)" | head -1 | cut -f2)
+
+if [ -z "$HIFIBERRY_SOURCE" ]; then
+    echo "ERROR: Could not find HiFiBerry audio source"
+    echo "Available sources:"
+    pactl list sources short
+    exit 1
+fi
+
+echo "Monitoring HiFiBerry source: $HIFIBERRY_SOURCE"
+echo "Press Ctrl+C to stop"
+echo
+
+# Run vumz with the HiFiBerry source
+exec vumz --source="$HIFIBERRY_SOURCE"
+EOF
+
+chmod +x /usr/local/bin/hifiberry-vu
+
+########################################
+# Cleanup
+########################################
+log_message "Cleaning up build files..."
+cd /
+rm -rf /tmp/vumz
+
+########################################
+# Usage information
+########################################
+log_message "Installation complete!"
+echo
+echo "Usage:"
+echo "  vumz                    # Monitor default audio source"
+echo "  hifiberry-vu           # Monitor HiFiBerry ADC specifically"
+echo "  vumz --help            # Show all options"
+echo
+echo "The HiFiBerry VU meter can be started with:"
+echo "  hifiberry-vu"
+echo
