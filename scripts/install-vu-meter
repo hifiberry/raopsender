@@ -103,13 +103,13 @@ cat > /usr/local/bin/hifiberry-vu << 'EOF'
 #!/bin/bash
 # hifiberry-vu - Monitor HiFiBerry ADC levels with vumz
 
-# Find HiFiBerry source
-HIFIBERRY_SOURCE=$(pactl list sources short | grep -E "(platform-soc_sound|hifiberry)" | head -1 | cut -f2)
+# Find HiFiBerry source using PipeWire
+HIFIBERRY_SOURCE=$(pw-cli ls Node | grep -A 20 "Audio/Source" | grep -E "(platform-soc_sound|hifiberry)" | grep "node.name" | head -1 | sed 's/.*node.name = "\([^"]*\)".*/\1/')
 
 if [ -z "$HIFIBERRY_SOURCE" ]; then
     echo "ERROR: Could not find HiFiBerry audio source"
-    echo "Available sources:"
-    pactl list sources short
+    echo "Available audio sources:"
+    pw-cli ls Node | grep -A 5 "Audio/Source" | grep "node.name"
     exit 1
 fi
 
