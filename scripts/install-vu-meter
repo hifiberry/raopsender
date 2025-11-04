@@ -103,13 +103,49 @@ cat > /usr/local/bin/hifiberry-vu << 'EOF'
 #!/bin/bash
 # hifiberry-vu - Monitor HiFiBerry ADC levels with vumz
 
-# Find HiFiBerry source using PipeWire
-HIFIBERRY_SOURCE=$(pw-cli ls Node | grep -A 20 "Audio/Source" | grep -E "(platform-soc_sound|hifiberry)" | grep "node.name" | head -1 | sed 's/.*node.name = "\([^"]*\)".*/\1/')
+# Function to find HiFiBerry source using PipeWire
+find_hifiberry_source() {
+    local current_node=""
+    local node_name=""
+    local media_class=""
+    
+    while IFS= read -r line; do
+        # Check for new node
+        if [[ $line =~ ^[[:space:]]*id\ ([0-9]+) ]]; then
+            # Process previous node if it was an Audio/Source
+            if [[ "$media_class" == "Audio/Source" && "$node_name" =~ (platform-soc_sound|hifiberry|sndrpihifiberry) ]]; then
+                echo "$node_name"
+                return 0
+            fi
+            # Reset for new node
+            current_node="${BASH_REMATCH[1]}"
+            node_name=""
+            media_class=""
+        elif [[ $line =~ node\.name\ =\ \"([^\"]+)\" ]]; then
+            node_name="${BASH_REMATCH[1]}"
+        elif [[ $line =~ media\.class\ =\ \"([^\"]+)\" ]]; then
+            media_class="${BASH_REMATCH[1]}"
+        fi
+    done < <(pw-cli ls Node)
+    
+    # Check the last node
+    if [[ "$media_class" == "Audio/Source" && "$node_name" =~ (platform-soc_sound|hifiberry|sndrpihifiberry) ]]; then
+        echo "$node_name"
+        return 0
+    fi
+    
+    return 1
+}
+
+# Find HiFiBerry source
+HIFIBERRY_SOURCE=$(find_hifiberry_source)
 
 if [ -z "$HIFIBERRY_SOURCE" ]; then
     echo "ERROR: Could not find HiFiBerry audio source"
     echo "Available audio sources:"
-    pw-cli ls Node | grep -A 5 "Audio/Source" | grep "node.name"
+    pw-cli ls Node | awk '/media\.class = "Audio\/Source"/ {found=1} found && /node\.name = / {print "  " $0; found=0}'
+    echo
+    echo "Looking for sources matching: platform-soc_sound, hifiberry, or sndrpihifiberry"
     exit 1
 fi
 
