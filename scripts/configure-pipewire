@@ -43,36 +43,11 @@ context.modules = [
     {
         name = libpipewire-module-raop-discover
         args = {
-            stream.rules = [
-                {   matches = [
-                    {    raop.ip = "~.*"
-                         #raop.port = 1000
-                         #raop.name = ""
-                         #raop.hostname = ""
-                         #raop.domain = ""
-                         #raop.device = ""
-                         #raop.transport = "udp" | "tcp"
-                         #raop.encryption.type = "none" | "RSA" | "auth_setup" | "fp_sap25"
-                         #raop.audio.codec = "PCM" | "ALAC" | "AAC" | "AAC-ELD"
-                         raop.audio.codec = "ALAC"
-                         audio.channels = 2
-                         audio.format = "S16"
-                         audio.rate = 48000
-                         #device.model = ""
-                    }
-                ]
-                actions = {
-                    create-stream = {
-                        #raop.password = ""
-                        stream.props = {
-                            #target.object = ""
-                            #media.class = "Audio/Sink"
-                        }
-                    }
-                }
-            }
+            raop.latency.ms = 500
+            raop.audio.codec = "ALAC"
         }
     }
+
 ]
 EOF
 
