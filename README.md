@@ -81,8 +81,12 @@ A 25-minute recording at 48kHz/16-bit stereo will be approximately:
    # Install the vumz VU meter (one time setup)
    sudo ./scripts/install-vu-meter
    
-   # Monitor HiFiBerry levels in real-time
-   hifiberry-vu
+   # Set HiFiBerry as default source (so vumz uses it)
+   HIFIBERRY_ID=$(pw-cli ls Node | awk '/id [0-9]+.*Node/ {id=$2; gsub(/,/,"",id)} /alsa_input\.platform-soc_sound/ {print id; exit}')
+   wpctl set-default $HIFIBERRY_ID
+   
+   # Monitor audio levels in real-time
+   vumz
    ```
 
 3. **Split long recordings** by track later using audio editing software like Audacity or command-line tools.
