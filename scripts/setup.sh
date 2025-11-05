@@ -108,6 +108,30 @@ else
 fi
 
 ########################################
+# Install sample rate configuration script
+########################################
+echo ""
+echo "Installing sample rate configuration script..."
+echo ""
+
+SAMPLERATE_SCRIPT="$SCRIPT_DIR/set-system-samplerate"
+
+if [ -f "$SAMPLERATE_SCRIPT" ]; then
+  # Make sure the script is executable
+  chmod +x "$SAMPLERATE_SCRIPT"
+  
+  # Copy script to /usr/local/bin for system-wide access
+  cp "$SAMPLERATE_SCRIPT" /usr/local/bin/
+  chmod +x /usr/local/bin/set-system-samplerate
+  
+  echo "Sample rate configuration script installed to /usr/local/bin/set-system-samplerate"
+  echo "Usage: sudo set-system-samplerate <rate>  # 44100, 48000, 96000, or 192000"
+else
+  echo "Warning: set-system-samplerate not found at $SAMPLERATE_SCRIPT"
+  echo "Sample rate configuration script not installed."
+fi
+
+########################################
 # Configure autologin on tty1 (systemd getty override)
 ########################################
 GETTY_DIR="/etc/systemd/system/getty@tty1.service.d"

@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+"""
+set-system-samplerate
+Sets the system-wide PipeWire sample rate in raop.conf
+Accepts: 44100, 48000, 96000, or 192000 Hz
+"""
+
+import sys
+import os
+import argparse
+from datetime import datetime
+from pathlib import Path
+
+def log_message(message):
+    """Log a message with timestamp"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f"[{timestamp}] {message}")
+
+def validate_sample_rate(rate):
+    """Validate the sample rate parameter"""
+    valid_rates = [44100, 48000, 96000, 192000]
+    try:
+        rate_int = int(rate)
+        if rate_int not in valid_rates:
+            raise ValueError(f"Invalid sample rate. Must be one of: {', '.join(map(str, valid_rates))}")
+        return rate_int
+    except ValueError as e:
+        if "invalid literal" in str(e):
+            raise ValueError(f"Sample rate must be a number. Got: {rate}")
+        raise
+
+def backup_file(file_path):
+    """Create a backup of the file"""
+    if os.path.exists(file_path):
+        backup_path = f"{file_path}.bak.{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        with open(file_path, 'r') as src, open(backup_path, 'w') as dst:
+            dst.write(src.read())
+        log_message(f"Created backup: {backup_path}")
+        return backup_path
+    return None
+
+def update_raop_config(config_file, sample_rate):
+    """Update the sample rate in existing RAOP configuration"""
+    import re
+    
+    # Read existing config if it exists
+    if config_file.exists():
+        with open(config_file, 'r') as f:
+            content = f.read()
+    else:
+        # Create minimal config if file doesn't exist
+        content = """context.properties = {
+    default.clock.rate          = 48000
+    default.clock.allowed-rates = [ 48000 ]
+}
+
+context.modules = [
+    {
+        name = libpipewire-module-raop-discover
+        args = {
+            raop.latency.ms = 1000
+            raop.audio.codec = "ALAC"
+        }
+    }
+]
+"""
+    
+    # Update default.clock.rate
+    content = re.sub(
+        r'default\.clock\.rate\s*=\s*\d+',
+        f'default.clock.rate          = {sample_rate}',
+        content
+    )
+    
+    # Update default.clock.allowed-rates
+    content = re.sub(
+        r'default\.clock\.allowed-rates\s*=\s*\[[^\]]*\]',
+        f'default.clock.allowed-rates = [ {sample_rate} ]',
+        content
+    )
+    
+    return content
+
+def set_system_sample_rate(sample_rate):
+    """Set the system sample rate in PipeWire configuration"""
+    config_dir = Path("/etc/pipewire/pipewire.conf.d")
+    config_file = config_dir / "raop.conf"
+    
+    # Check if running as root
+    if os.geteuid() != 0:
+        log_message("ERROR: This script must be run as root")
+        log_message("Please run with: sudo python3 set-system-samplerate <rate>")
+        return False
+    
+    # Create config directory if it doesn't exist
+    config_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Backup existing config if it exists
+    if config_file.exists():
+        backup_file(str(config_file))
+    
+    # Update configuration
+    try:
+        updated_content = update_raop_config(config_file, sample_rate)
+        
+        with open(config_file, 'w') as f:
+            f.write(updated_content)
+        
+        log_message(f"Successfully updated system sample rate to {sample_rate} Hz")
+        log_message(f"Configuration updated in: {config_file}")
+        log_message("Restart PipeWire for changes to take effect:")
+        log_message("  systemctl --user restart pipewire")
+        
+        return True
+        
+    except Exception as e:
+        log_message(f"ERROR: Failed to update configuration: {e}")
+        return False
+
+def main():
+    """Main function"""
+    parser = argparse.ArgumentParser(
+        description="Set system-wide PipeWire sample rate",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  sudo python3 set-system-samplerate 48000   # Set to 48kHz
+  sudo python3 set-system-samplerate 44100   # Set to 44.1kHz
+  sudo python3 set-system-samplerate 96000   # Set to 96kHz
+
+Supported sample rates: 44100, 48000, 96000, 192000 Hz
+        """
+    )
+    
+    parser.add_argument(
+        'sample_rate',
+        help='Sample rate in Hz (44100, 48000, 96000, or 192000)'
+    )
+    
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(1)
+    
+    args = parser.parse_args()
+    
+    try:
+        # Validate sample rate
+        sample_rate = validate_sample_rate(args.sample_rate)
+        
+        log_message(f"Setting system sample rate to {sample_rate} Hz...")
+        
+        # Set the sample rate
+        if set_system_sample_rate(sample_rate):
+            log_message("Sample rate configuration completed successfully")
+            sys.exit(0)
+        else:
+            log_message("Failed to set sample rate")
+            sys.exit(1)
+            
+    except ValueError as e:
+        log_message(f"ERROR: {e}")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        log_message("Operation cancelled by user")
+        sys.exit(1)
+    except Exception as e:
+        log_message(f"Unexpected error: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
