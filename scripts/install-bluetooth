@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# install-bluetooth
+# Basic Bluetooth setup for Raspberry Pi
+# Unblocks Bluetooth radio if it's been disabled
+
+########################################
+# Safety checks and environment
+########################################
+if [ "$(id -u)" -ne 0 ]; then
+  echo "This script requires root. Re-running with sudo..."
+  exec sudo bash "$0" "$@"
+fi
+
+########################################
+# Helper functions
+########################################
+log_message() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+########################################
+# Enable Bluetooth
+########################################
+log_message "Enabling Bluetooth..."
+
+# Unblock Bluetooth radio
+rfkill unblock bluetooth
+
+# Bring up the Bluetooth interface
+hciconfig hci0 up
+
+log_message "Bluetooth has been unblocked and interface brought up"
+
+# Show current rfkill status
+log_message "Current radio status:"
+rfkill list bluetooth || rfkill list
+
+log_message "Bluetooth setup complete"
