@@ -49,12 +49,18 @@ else
     if wpctl set-default "$HIFIBERRY_ID"; then
         log_message "✅ Successfully set HiFiBerry as default audio source"
         
-        # Verify the change
-        NEW_DEFAULT=$(wpctl status | grep -A 10 "Audio" | grep -A 5 "Sources:" | grep "\*" | head -1 | awk '{print $2}' || echo "none")
+        # Verify the change (give it a moment to take effect)
+        sleep 1
+        NEW_DEFAULT=$(wpctl status | grep -A 10 "Audio" | grep -A 5 "Sources:" | grep "\*" | head -1 | awk '{print $2}' | tr -d '.' || echo "none")
         if [ "$NEW_DEFAULT" = "$HIFIBERRY_ID" ]; then
             log_message "✅ Verified: HiFiBerry is now the default source"
         else
-            log_message "⚠️  Warning: Default source may not have changed correctly"
+            # The change worked but verification parsing might be different
+            if wpctl status | grep -A 10 "Audio" | grep -A 5 "Sources:" | grep -q "\* *$HIFIBERRY_ID"; then
+                log_message "✅ Verified: HiFiBerry is now the default source"
+            else
+                log_message "⚠️  Warning: Default source may not have changed correctly"
+            fi
         fi
     else
         log_message "❌ Failed to set HiFiBerry as default source"
