@@ -45,6 +45,7 @@ if [ -f "$CONFIG_FILE" ]; then
                     current_name="${BASH_REMATCH[1]}"
                 elif [[ $line =~ ^[[:space:]]*node\.description[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
                     current_description="${BASH_REMATCH[1]}"
+                fi
             done <<< "$all_nodes"
             
             # Check the last node too
