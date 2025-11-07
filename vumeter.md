@@ -27,9 +27,32 @@ sudo apt install -y hbos-minimal
 sudo hifiberry-baseconfig
 ```
 - Reboot
+- Check that the sound card is detected
+```
+arecord -l
+```
+This should show your HiFiBerry sound card:
+```
+$ arecord -l
+**** List of CAPTURE Hardware Devices ****
+card 0: sndrpihifiberry [snd_rpi_hifiberry_dacplusadcpro], device 0: HiFiBerry DAC+ADC Pro HiFi multicodec-0 [HiFiBerry DAC+ADC Pro HiFi multicodec-0]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+```
 
 # Install Airplay sender
 
+- Clone this repository
+```
+sudo apt install -y git
+git clone https://github.com/hifiberry/raopsender
+```
+
+- Setup the software
+```
+cd raopsender/scripts
+./setup.sh
+```
 
 
 # Sphere enclosure
