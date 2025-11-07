@@ -38,13 +38,13 @@ if [ -f "$CONFIG_FILE" ]; then
                     fi
                     
                     # Reset for new node
-                    current_id="${BASH_REMATCH[1]}"
+                    current_id="${BASH_REMATCH[1]:-}"
                     current_name=""
                     current_description=""
                 elif [[ $line =~ ^[[:space:]]*node\.name[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
-                    current_name="${BASH_REMATCH[1]}"
+                    current_name="${BASH_REMATCH[1]:-}"
                 elif [[ $line =~ ^[[:space:]]*node\.description[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
-                    current_description="${BASH_REMATCH[1]}"
+                    current_description="${BASH_REMATCH[1]:-}"
                 fi
             done <<< "$all_nodes"
             
@@ -136,16 +136,16 @@ while IFS= read -r line; do
         fi
         
         # Reset for new node and capture ID
-        current_id="${BASH_REMATCH[1]}"
+        current_id="${BASH_REMATCH[1]:-}"
         current_name=""
         current_description=""
         current_media_class=""
     elif [[ $line =~ ^[[:space:]]*node\.name[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
-        current_name="${BASH_REMATCH[1]}"
+        current_name="${BASH_REMATCH[1]:-}"
     elif [[ $line =~ ^[[:space:]]*node\.description[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
-        current_description="${BASH_REMATCH[1]}"
+        current_description="${BASH_REMATCH[1]:-}"
     elif [[ $line =~ ^[[:space:]]*media\.class[[:space:]]*=[[:space:]]*\"(.*)\" ]]; then
-        current_media_class="${BASH_REMATCH[1]}"
+        current_media_class="${BASH_REMATCH[1]:-}"
     fi
 done <<< "$all_nodes"
 
