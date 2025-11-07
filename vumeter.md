@@ -22,10 +22,25 @@ curl -Ls https://tinyurl.com/hbosrepo | bash
 ```
 sudo apt install -y hbos-minimal
 ```
+- Basic configuration
+```
+sudo hifiberry-baseconfig
+```
+- Reboot
+
+# Install Airplay sender
+
+
 
 # Sphere enclosure
 
 # VU meter
+
+After connecting the 4" DSI display, configure it in /boot/firmware/config.txt
+
+```
+dtoverlay=vc4-kms-dsi-waveshare-panel,4_0_inchC
+```
 
 
 
