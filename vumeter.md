@@ -13,6 +13,16 @@ This project shows how to create a device that can transmit analog audio (e.g. o
 
 # Base setup
 
+- Install Raspberry PI OS Lite (64bit) to an SD card
+- Add the HiFiBerry repository:
+```
+curl -Ls https://tinyurl.com/hbosrepo | bash
+```
+- Install a minimal HiFiBerryOS
+```
+sudo apt install -y hbos-minimal
+```
+
 # Sphere enclosure
 
 # VU meter
