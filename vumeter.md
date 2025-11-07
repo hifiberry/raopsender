@@ -54,8 +54,9 @@ cd raopsender/scripts
 ./setup.sh
 ```
 
-
 # Sphere enclosure
+
+TODO
 
 # VU meter
 
@@ -65,7 +66,122 @@ After connecting the 4" DSI display, configure it in /boot/firmware/config.txt
 echo "dtoverlay=vc4-kms-dsi-waveshare-panel,4_0_inchC" | sudo tee -a /boot/firmware/config.txt
 ```
 
+Check that the display is recognized correctly. You should see boot messages on the screen.
 
+## Install the VU meter
+
+Clone the HiFiBerry VU meter repository:
+
+```bash
+git clone https://github.com/hifiberry/hifiberry-vu
+cd hifiberry-vu
+```
+
+### Install dependencies
+
+The VU meter requires SDL2 libraries and Python dependencies. Install them using the included script:
+
+```bash
+# Install SDL2 and system dependencies
+cd sdl2
+sudo ./install-sdl2
+cd ..
+```
+
+This will install:
+- SDL2 core libraries and extensions (image, mixer, ttf, gfx)
+- PySDL2 Python bindings
+- Development tools and headers
+
+### Install Python package
+
+Install the VU meter package:
+
+```bash
+# Install the package with dependencies
+pip3 install --break-system-packages -e .
+```
+
+Or install dependencies manually:
+
+```bash
+pip3 install --break-system-packages pysdl2 pyaudio numpy
+```
+
+### Test the installation
+
+Verify that SDL2 is working:
+
+```bash
+python3 sdl2/test-sdl2.py
+```
+
+## Run the VU meter
+
+The VU meter can be run in different modes:
+
+### Demo mode (animated needle):
+```bash
+python3 -m hifiberry_vu.vu_meter --mode=demo --rotate=180
+```
+
+### Real-time audio monitoring:
+```bash
+python3 -m hifiberry_vu.vu_meter --mode=alsa --channel=stereo --rotate=180
+```
+
+### Available options:
+- `--mode`: `demo` or `alsa` (real audio)
+- `--channel`: `left`, `right`, `stereo`, or `max` (for ALSA mode)
+- `--rotate`: `0`, `90`, `180`, or `270` degrees
+- `--config`: VU meter configuration (`simple` is default)
+- `--update-rate`: VU level updates per second (5-60 Hz)
+- `--no-fps`: Disable FPS display
+
+### Quick launcher:
+```bash
+./run.sh
+```
+
+This provides an interactive menu to test different modes and configurations.
+
+## Auto-start on login
+
+To automatically start the VU meter when logging in locally (not via SSH):
+
+```bash
+./activate-on-local-login
+```
+
+This configures the VU meter to start automatically on local console login with optimal settings for the display.
+
+## Environment configuration
+
+For framebuffer rendering, set these environment variables:
+
+```bash
+export SDL_VIDEODRIVER=KMSDRM
+export SDL_FBDEV=/dev/fb0
+export SDL_NOMOUSE=1
+```
+
+## Troubleshooting
+
+### Permission issues:
+```bash
+sudo usermod -a -G video $USER
+newgrp video
+```
+
+### SDL2 import errors:
+```bash
+pip3 install --break-system-packages PySDL2
+```
+
+### Check available audio devices:
+```bash
+python3 -c "from hifiberry_vu.python_vu import VUMonitor; VUMonitor().list_audio_devices()"
+```
 
 
 
