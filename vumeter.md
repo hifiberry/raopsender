@@ -62,7 +62,7 @@ cd raopsender/scripts
 After connecting the 4" DSI display, configure it in /boot/firmware/config.txt
 
 ```
-echo "dtoverlay=vc4-kms-dsi-waveshare-panel,4_0_inchC" | sudo tee /boot/firmware/config.txt
+echo "dtoverlay=vc4-kms-dsi-waveshare-panel,4_0_inchC" | sudo tee -a /boot/firmware/config.txt
 ```
 
 
