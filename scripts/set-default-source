@@ -3,7 +3,7 @@ set -euo pipefail
 
 # set-default-source
 # Sets the HiFiBerry ADC input as the default PipeWire audio source
-# This ensures applications like vumz use the analog input by default
+# This ensures applications use the analog input by default
 
 ########################################
 # Helper functions
@@ -81,4 +81,3 @@ wpctl status | grep -A 10 "Audio" | grep -A 5 "Sources:" | grep -E "^  [0-9]+\."
 
 echo
 log_message "HiFiBerry is ready for audio monitoring and recording"
-log_message "You can now run: vumz"
