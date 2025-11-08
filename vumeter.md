@@ -183,6 +183,13 @@ pip3 install --break-system-packages PySDL2
 python3 -c "from hifiberry_vu.python_vu import VUMonitor; VUMonitor().list_audio_devices()"
 ```
 
+## Clean up
+
+As we don't need all HiFiBerryOS functionality for this project, some services can be disabled:
+
+```
+sudo systemctl disable nginx sigmatcpserver audiocontrol
+```
 
 
 
